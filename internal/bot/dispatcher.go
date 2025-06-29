@@ -12,14 +12,14 @@ func StartDispatcher(bot *tgbotapi.BotAPI) {
 	updates := bot.GetUpdatesChan(u)
 
 	for update := range updates {
-		if update.Message  == nil {
+		if update.Message == nil {
 			continue
 		}
-		
+
 		if update.Message.IsCommand() {
 			switch update.Message.Command() {
 			case "start":
-				handleStart(bot, update.Message)
+				// handleStart(bot, update.Message)
 			}
 		}
 	}

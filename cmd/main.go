@@ -10,37 +10,46 @@ import (
 	"github.com/DavydAbbasov/trecker_bot/config"
 	"github.com/DavydAbbasov/trecker_bot/internal/bot"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	log "github.com/rs/zerolog/log"
 )
 
-func main() {
-	config.LoadConfig()
+// var wg sync.WaitGroup
 
-	tgBot, err := bot.InitBot(config.TelegramToken)
+func main() {
+	cfg := config.MustLoad()
+
+	_, err := bot.New(cfg)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error initialization bot : %v\n", err)
-		os.Exit(1)
+		log.Fatal().Msgf("error initialization bot : %v\n", err)
 	}
 
-	SetupGracefulShutdown(tgBot, nil)
+	fmt.Println("START APP")
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGINT)
+
+	<-signalChan
+	log.Info().Msg("telegram bot gracefully shutdown")
+
+	// Функции или код, который завершает работу
+
+	log.Info().Msg("telegram bot is shutdown")
 }
 
 func SetupGracefulShutdown(bot *tgbotapi.BotAPI, db *sql.DB) {
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
-	<-stop
 	fmt.Println("The completion signal has been received. Completing the work.")
 
-	if db != nil {
-		err := db.Close()
-		if err != nil {
-			fmt.Println("Error when closing the database:", err)
-		} else {
-			fmt.Println("The database connection is closed.")
-		}
-	}
-	if bot != nil {
-		bot.StopReceivingUpdates()
-		fmt.Println("Bot Stoped")
-	}
+	// if db != nil {
+	// 	err := db.Close()
+	// 	if err != nil {
+	// 		fmt.Println("Error when closing the database:", err)
+	// 	} else {
+	// 		fmt.Println("The database connection is closed.")
+	// 	}
+	// }
+	// if bot != nil {
+	// 	bot.StopReceivingUpdates()
+	// 	fmt.Println("Bot Stoped")
+	// }
 }
