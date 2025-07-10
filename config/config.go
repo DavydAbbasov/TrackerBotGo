@@ -1,101 +1,29 @@
 package config
 
 import (
-	"log"
 	"os"
 
-	"github.com/joho/godotenv"
+	"github.com/ilyakaznacheev/cleanenv"
+	log "github.com/rs/zerolog/log"
 )
 
-/*
-что?
-Централизованное и типизированное управление конфигурацией.
-Удобно расширять — добавляешь поле в структуру, и всё работает.
-Глобальные переменные убраны — это хорошая практика.
-почему?
-Централизация Всё в одном месте — легко менять и находить
-Безопасность Меньше шансов утечки токенов, если всё структурировано
-Удобство тестирования Можно подставить фейковый cfg в тестах
-Расширяемость 	Нужно больше настроек? Добавил в Config — и всё работает
-Ясная архитектура Чёткий порядок и минимальный хаос
-
-Config хранит все настройки из .env
-*/
 type Config struct {
 	TelegramToken    string `env:"telegram_token"`     //нужен, чтобы подключить бота.ключ авторизации Telegram-бота.
 	TelegramBotDebug bool   `env:"telegram_bot_debug"` //включает/выключает отладку.Например, ты увидишь, какие апдейты приходят, как отправляются сообщения.
-
-	DBHost string `env:"db_host"` //Где (на каком сервере) живёт база
-	DBPORT string `env:"db_port"` //Через какой порт к ней подключаться
-	/*
-		Когда ты будешь подключаться к базе данных
-		(PostgreSQL, MySQL и т.д.), тебе нужно знать:
-		где она находится (host)
-		на каком порту работает (port)
-		логин/пароль (user/password)
-		название базы (dbname)
-
-		host — в какой дом (IP или доменное имя)?
-		port — в какую дверь стучать?
-		Если не указать, куда идти — программа не найдёт базу данных
-	*/
+	DBHost           string `env:"db_host"`            //Где (на каком сервере) живёт база
+	DBPORT           string `env:"db_port"`            //Через какой порт к ней подключаться
 }
 
-/*
-Что делает Load()
-Это функция, которая:
-Загружает .env файл.
-Считывает переменные окружения.
-Возвращает экземпляр Config — готовый объект со всеми нужными значениями.
-*/
-func Load() *Config {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+func MustLoadConfig(configPath string) *Config {
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		log.Fatal().Msg("config file does not exist: " + configPath)
 	}
 
-	cfg := &Config{
-		TelegramToken:    os.Getenv("TELEGRAM_TOKEN"),
-		TelegramBotDebug: os.Getenv("TELEGRAM_BOT_DEBUG") == "true",
-		DBHost:           os.Getenv("DB_HOST"),
-		DBPORT:           os.Getenv("DB_PORT"),
+	var cfg Config
+
+	if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
+		log.Fatal().Msg("cannot read config: " + err.Error())
 	}
 
-	if cfg.TelegramToken == "" {
-		log.Fatal("TELEGRAM_TOKEN is not set in the environment variables")
-	}
-	return cfg
+	return &cfg
 }
-
-/*
- 1.os.Getenv - это стандартная функция из пакета os, которая позволяет
- получать переменные окружения (Это переменная, которая живёт вне кода,
- но влияет на поведение программы.например TELEGRAM_TOKEN=123abc456)
- Она может быть в .env файле или задана в окружении Linux, Docker и т.д.
-
-Что делает os.Getenv("TELEGRAM_TOKEN")- возвращает строку со
- значением переменной ( => "123abc456")
-
-2.godotenv.Load() — Это вспомогательная функция из стороннего пакета
-github.com/joho/godotenv.
-Она нужна для разработки локально — чтобы загрузить
-переменные из .env файла в окружение.
-Эта строка:
-
-Читает .env файл в корне проекта
-Каждую строчку вроде TELEGRAM_TOKEN=abc123 записывает в окружение
-Теперь использовать os.Getenv("TELEGRAM_TOKEN") как будто
-эта переменная была уже в системе
-
-3.Конфигурация — это всё, что настраивает поведение
-программы без изменения её кода.
-Примеры:Конфигурация	Пример
-Telegram Token	TELEGRAM_TOKEN=...
-
-4. Что такое “передача зависимостей”
-Зависимость — это любой внешний компонент, от которого
-зависит работа функции, например:
-Telegram Bot API
-База данных
-всё, что функция должна знать — передаётся в неё в виде аргумента.
-*/
