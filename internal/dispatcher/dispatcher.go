@@ -19,15 +19,34 @@ func Start(bot interfaces.StoppableBot) {
 	updates := bot.GetUpdatesChan(u)
 
 	for update := range updates {
+		// 1. Инлайн-кнопки (callback)
+		if update.CallbackQuery != nil {
+			handleCallbackQuery(bot, update.CallbackQuery)
+			continue
+		}
+		// 2. Сообщение отсутствует — пропускаем
 		if update.Message == nil {
 			continue
 		}
-
+		// 3. Команды (начинаются с "/")
 		if update.Message.IsCommand() {
 			switch update.Message.Command() {
 			case "start":
 				HandleStart(bot, update.Message)
+				// case "track":
+				// 	HandleTrack(bot, update.Message)
 			}
+			// return
+			continue
+		}
+		// 4. Текстовые кнопки (обычные сообщения)
+		switch update.Message.Text {
+		case "👤My account":
+			ShowProfileMock(bot, update.Message.Chat.ID)
+		case "📈Track":
+			ShowTrackingMenu(bot, update.Message.Chat.ID)
+		case "🧠Learning":
+			ShowLearningMenu(bot, update.Message.Chat.ID)
 		}
 	}
 }
