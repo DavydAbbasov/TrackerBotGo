@@ -7,7 +7,7 @@ import (
 	log "github.com/rs/zerolog/log"
 )
 
-func New(cfg *config.Config) (interfaces.StoppableBot, error) {
+func New(cfg *config.Config) (interfaces.BotAPI, error) {
 	bot, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
 	if err != nil {
 		return nil, err

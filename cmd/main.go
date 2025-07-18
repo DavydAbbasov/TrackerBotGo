@@ -53,7 +53,7 @@ func main() {
 }
 
 // Завершение соединений (бот и база данных)
-func waitForShutdown(tgBot interfaces.StoppableBot, db *sql.DB) {
+func waitForShutdown(tgBot interfaces.BotAPI, db *sql.DB) {
 
 	fmt.Println("The completion signal has been received. Completing the work.")
 

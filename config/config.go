@@ -24,9 +24,8 @@ Config хранит все настройки из .env
 type Config struct {
 	TelegramToken    string `env:"telegram_token"`     //нужен, чтобы подключить бота.ключ авторизации Telegram-бота.
 	TelegramBotDebug bool   `env:"telegram_bot_debug"` //включает/выключает отладку.Например, ты увидишь, какие апдейты приходят, как отправляются сообщения.
-
-	DBHost string `env:"db_host"` //Где (на каком сервере) живёт база
-	DBPORT string `env:"db_port"` //Через какой порт к ней подключаться
+	DBHost           string `env:"db_host"`            //Где (на каком сервере) живёт база
+	DBPORT           string `env:"db_port"`            //Через какой порт к ней подключаться
 	/*
 		Когда ты будешь подключаться к базе данных
 		(PostgreSQL, MySQL и т.д.), тебе нужно знать:

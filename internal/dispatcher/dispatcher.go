@@ -12,7 +12,7 @@ import (
 )
 
 // Она будет запускать цикл получения апдейтов и направлять их по маршрутам
-func Start(bot interfaces.StoppableBot) {
+func Start(bot interfaces.BotAPI) {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
@@ -28,15 +28,24 @@ func Start(bot interfaces.StoppableBot) {
 		if update.Message == nil {
 			continue
 		}
+
+		// 1. Проверяем, есть ли состояние
+		userID := update.Message.From.ID
+
+		if state, ok := UserStates[userID]; ok && state.State == "waiting_for_collection_name" {
+			ProcessCollectionCreation(bot, update.Message)
+			continue
+		}
+
 		// 3. Команды (начинаются с "/")
 		if update.Message.IsCommand() {
+
 			switch update.Message.Command() {
 			case "start":
 				HandleStart(bot, update.Message)
-				// case "track":
-				// 	HandleTrack(bot, update.Message)
+
 			}
-			// return
+
 			continue
 		}
 		// 4. Текстовые кнопки (обычные сообщения)
@@ -47,6 +56,12 @@ func Start(bot interfaces.StoppableBot) {
 			ShowTrackingMenu(bot, update.Message.Chat.ID)
 		case "🧠Learning":
 			ShowLearningMenu(bot, update.Message.Chat.ID)
+		case "💳Subscription":
+			ShowSubscriptionMenu(bot, update.Message.Chat.ID)
+		case "↩ Назад Home":
+			ShowMainMenu(bot, update.Message.Chat.ID)
+		case "📅 Период":
+			ShowCalendar(bot, update.Message.Chat.ID, "🦫Go")
 		}
 	}
 }
