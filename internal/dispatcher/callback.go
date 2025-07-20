@@ -21,8 +21,9 @@ func handleCallbackQuery(bot interfaces.BotAPI, callback *tgbotapi.CallbackQuery
 		return
 
 	case strings.HasPrefix(data, "activity_report_"):
-		activity := strings.TrimPrefix(data, "activity_report_")
-		SowTrackReportMenu(bot, chatID, activity)
+		activityName := strings.TrimPrefix(data, "activity_report_")
+		userID := callback.From.ID
+		ShowActivityReport(bot, chatID, userID, activityName)
 		return
 
 	case strings.HasPrefix(data, "calendar_"):
@@ -53,15 +54,17 @@ func handleCallbackQuery(bot interfaces.BotAPI, callback *tgbotapi.CallbackQuery
 		return // Останавливает выполнение, дальше код не идёт
 
 	case "summary":
-		ShowActivityList(bot, callback.Message.Chat.ID)
+		userID := callback.From.ID
+		ShowActivityList(bot, callback.Message.Chat.ID, userID)
 		return
 
 	case "create_activity":
-		ShowCreateActivityPrompt(bot, callback.Message.Chat.ID)
+		AddActivity(bot, callback.Message.Chat.ID)
 		return
 
 	case "selection_activity":
-		SelectionActivityPromt(bot, callback.Message.Chat.ID)
+		userID := callback.From.ID
+		SelectionActivityPromt(bot, callback.Message.Chat.ID, userID)
 		return
 	case "add_collection":
 		AddCollection(bot, callback.Message.Chat.ID)

@@ -36,6 +36,10 @@ func Start(bot interfaces.BotAPI) {
 			ProcessCollectionCreation(bot, update.Message)
 			continue
 		}
+		if state, ok := TrackingUserStates[userID]; ok && state.State == "waiting_for_activity_name" {
+			ProcessAddActivity(bot, update.Message)
+			continue
+		}
 
 		// 3. Команды (начинаются с "/")
 		if update.Message.IsCommand() {

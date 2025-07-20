@@ -2,11 +2,34 @@ package dispatcher
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/DavydAbbasov/trecker_bot/pkg/interfaces"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/rs/zerolog/log"
 )
+
+type TrackingUserState struct {
+	State       string
+	CurrentName string
+}
+
+var TrackingUserStates = map[int64]*TrackingUserState{}
+
+type Activity struct {
+	NameActivity string
+	TimeEntry    []TimeEntry
+}
+
+type TimeEntry struct {
+	Timestamp time.Time
+	Start     time.Time
+	End       time.Time
+	Duration  time.Duration
+}
+
+var ActivityCollections = map[int64][]Activity{}
 
 func ShowTrackingMenu(bot interfaces.BotAPI, chatID int64) {
 	text := `
@@ -42,11 +65,12 @@ func buildTrackKeyboard() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(row1, row2)
 
 }
-func ShowActivityList(bot interfaces.BotAPI, chatID int64) {
+func ShowActivityList(bot interfaces.BotAPI, chatID int64, userID int64) {
 	text := "📋 Выберите активность для отчёта:"
 
 	// заглушка (mock), потом реальные активности из хранения
-	activities := []string{"🦫Go", "📘English", "🏋️‍♀️Workout"}
+	activities := ActivityCollections[userID]
+	// activities := []string{"🦫Go", "📘English", "🏋️‍♀️Workout"}
 	/*
 					   Объявляется двумерный срез кнопок,
 					   использоваться для создания инлайн-клавиатуры
@@ -70,7 +94,12 @@ func ShowActivityList(bot interfaces.BotAPI, chatID int64) {
 	*/
 	var rows [][]tgbotapi.InlineKeyboardButton
 	for _, activity := range activities {
-		btn := tgbotapi.NewInlineKeyboardButtonData(activity, "activity_report_"+activity)
+		if activity.NameActivity == "" {
+			log.Warn().Msg("Обнаружена подборка без названия, пропускаем")
+			continue
+		}
+		btn := tgbotapi.NewInlineKeyboardButtonData(activity.NameActivity,
+			"activity_report_"+activity.NameActivity)
 		//Мы создаём строку (ряд) с этой одной кнопкой
 		//И добавляем этот ряд в rows, чтобы собрать всю клавиатуру
 		//Пользователь ещё ничего не выбрал — мы готовим клавиатуру для выбора.
@@ -109,7 +138,18 @@ func ShowActivityList(bot interfaces.BotAPI, chatID int64) {
 	bot.Send(msg2)
 
 }
-func SowTrackReportMenu(bot interfaces.BotAPI, chatID int64, activity string) {
+func ShowActivityReport(bot interfaces.BotAPI, chatID int64, userID int64, activityName string) {
+
+	activities := ActivityCollections[userID]
+
+	if len(activities) == 0 {
+		msgError := tgbotapi.NewMessage(chatID, "empty")
+		if _, err := bot.Send(msgError); err != nil {
+			log.Error().Err(err).Msg("ошибка при отправке сообщения")
+			return
+		}
+	}
+
 	text := fmt.Sprintf(`
 
 📌 *Отчёт по активности:* _%s_ 
@@ -119,7 +159,22 @@ func SowTrackReportMenu(bot interfaces.BotAPI, chatID int64, activity string) {
 📈 Дней подряд: *31*  
 ⏱ Время сегодня: *2 ч 40 мин*
 
-Выберите, что вы хотите сделать:`, activity)
+Выберите, что вы хотите сделать:`, activityName)
+
+	// var rows [][]tgbotapi.InlineKeyboardButton
+
+	// for _, activity := range activities {
+	// 	if activity.NameActivity == "" {
+	// 		log.Warn().Msg("Обнаружена activity без названия, пропускаем")
+	// 		continue
+	// 	}
+
+	// 	if activity.NameActivity == activityName {
+
+	// 	}
+	// 	btn := tgbotapi.NewInlineKeyboardButtonData(activity.NameActivity, "activities_report_menu"+activity.NameActivity)
+	// 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
+	// }
 
 	replyMenu := tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
@@ -138,13 +193,21 @@ func SowTrackReportMenu(bot interfaces.BotAPI, chatID int64, activity string) {
 	)
 	replyMenu.ResizeKeyboard = true
 
+	// inlineKeyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
+
+	// msgInline := tgbotapi.NewMessage(chatID, "Активности для статистики")
+	// msgInline.ReplyMarkup = inlineKeyboard
+	// if _, err := bot.Send(msgInline); err != nil {
+	// 	log.Error().Err(err).Msg("error in displaying the inline report mrnu")
+	// }
+
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = replyMenu
-
 	if _, err := bot.Send(msg); err != nil {
 		log.Error().Err(err).Msg("error in displaying the report menu")
 	}
+
 }
 func ShowCalendar(bot interfaces.BotAPI, chatID int64, activity string) {
 	text := fmt.Sprintf(`
@@ -217,7 +280,7 @@ func ShowCalendar(bot interfaces.BotAPI, chatID int64, activity string) {
 		log.Error().Err(err).Msg("error showing calendar inlain")
 	}
 }
-func ShowCreateActivityPrompt(bot interfaces.BotAPI, chatID int64) {
+func AddActivity(bot interfaces.BotAPI, chatID int64) {
 	text := `
 📌 *Создание новой активности*
 
@@ -228,48 +291,28 @@ func ShowCreateActivityPrompt(bot interfaces.BotAPI, chatID int64) {
 
 Введите *название вашей активности* 
 `
+	TrackingUserStates[chatID] = &TrackingUserState{
+		State: "waiting_for_activity_name",
+	}
+
 	replyMenu := tgbotapi.NewReplyKeyboard(
-
-		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton("✅ Принять"),
-		),
-
 		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton("ℹ️ Помощь"),
 			tgbotapi.NewKeyboardButton("↩ Назад Home"),
 		),
 	)
+
 	replyMenu.ResizeKeyboard = true
 
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = replyMenu
-
 	if _, err := bot.Send(msg); err != nil {
 		log.Error().Err(err).Msg("error showing create activity prompt")
 	}
 }
-func SelectionActivityPromt(bot interfaces.BotAPI, chatID int64) {
-	text := `
-📂 *Выбрать активность*
-
-📂 Текущие активности: *🦫Go*
-📂 Архив активносте: *12*
-
-*Выберите активность для трека:*
-`
-	activities := []string{"🦫Go", "📘English", "🏋️‍♀️Workout"}
-
-	var rows [][]tgbotapi.InlineKeyboardButton
-
-	for _, activity := range activities {
-		btn := tgbotapi.NewInlineKeyboardButtonData(activity, "activity_selection_"+activity)
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
-	}
-
-	inlineMenu := tgbotapi.NewInlineKeyboardMarkup(rows...)
-
-	replyMenu := tgbotapi.NewReplyKeyboard(
+func GetActivityMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
+	return tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton("⏱️ Таймер:15"),
 			tgbotapi.NewKeyboardButton("⏱️ Таймер:60"),
@@ -279,6 +322,83 @@ func SelectionActivityPromt(bot interfaces.BotAPI, chatID int64) {
 			tgbotapi.NewKeyboardButton("↩ Назад Home"),
 		),
 	)
+
+}
+func ProcessAddActivity(bot interfaces.BotAPI, msg *tgbotapi.Message) {
+	userID := msg.From.ID
+	chatID := msg.Chat.ID
+	input := strings.TrimSpace(msg.Text)
+
+	if input == "ℹ️ Помощь" {
+		bot.Send(tgbotapi.NewMessage(chatID, "времено не доступно"))
+		return
+	}
+
+	if input == "" {
+		delete(TrackingUserStates, userID) //Удаляем пользователя из карты состояний
+		ShowMainMenu(bot, chatID)
+		return
+	}
+
+	state := TrackingUserStates[userID]
+	state.CurrentName = input
+	state.State = "activity_created" //обновляешь состояние пользователя - метка нового шага в логике.
+
+	text := fmt.Sprintf("Ваша активность:%s,создана", input)
+	confirmMsg := tgbotapi.NewMessage(chatID, text)
+	confirmMsg.ParseMode = "Markdown"
+
+	repluMenu := GetActivityMenuKeyboard()
+	repluMenu.ResizeKeyboard = true
+	confirmMsg.ReplyMarkup = repluMenu
+	if _, err := bot.Send(confirmMsg); err != nil {
+		log.Error().Err(err).Msg("err showing add_activity")
+	}
+
+	ActivityCollections[userID] = append(ActivityCollections[userID], Activity{
+		NameActivity: input,
+		TimeEntry:    []TimeEntry{},
+	})
+
+	followupMsg := tgbotapi.NewMessage(chatID, "➕ Теперь вы можете добавить таймер для трекинга.")
+	bot.Send(followupMsg)
+
+}
+func SelectionActivityPromt(bot interfaces.BotAPI, chatID int64, userID int64) {
+	text := `
+📂 *Выбрать активность*
+
+📂 Текущие активности: *🦫Go*
+📂 Архив активносте: *12*
+
+*Выберите активность для трека:*
+`
+	activities := ActivityCollections[userID]
+
+	if len(activities) == 0 {
+		msg := tgbotapi.NewMessage(chatID, "нет активностей")
+		if _, err := bot.Send(msg); err != nil {
+			log.Error().Err(err).Msg("ошибка при отправке сообщения")
+			return
+		}
+	}
+
+	// activities := []string{"🦫Go", "📘English", "🏋️‍♀️Workout"}
+
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	for _, activity := range activities {
+		if activity.NameActivity == "" {
+			log.Warn().Msg("Обнаружена подборка без названия, пропускаем")
+			continue
+		}
+		btn := tgbotapi.NewInlineKeyboardButtonData(activity.NameActivity, "activity_selection_"+activity.NameActivity)
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
+	}
+
+	inlineMenu := tgbotapi.NewInlineKeyboardMarkup(rows...)
+
+	replyMenu := GetActivityMenuKeyboard()
 
 	replyMenu.ResizeKeyboard = true
 
