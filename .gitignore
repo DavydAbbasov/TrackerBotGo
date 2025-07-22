@@ -1,3 +1,5 @@
 .env
 ./vendor
 /vendor
+# Ignore database data only
+database/postgres/data/
