@@ -35,7 +35,7 @@ func ShowProfileMock(bot interfaces.BotAPI, chatID int64) {
 }
 func buildProfileKeyboard() tgbotapi.InlineKeyboardMarkup {
 	row1 := tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("🌐 Язык", "edit_language"),
+		tgbotapi.NewInlineKeyboardButtonData("🌐 Язык", "edit_language_"),
 		tgbotapi.NewInlineKeyboardButtonData("📍 Часовой пояс", "edit_timezone"),
 	)
 	row2 := tgbotapi.NewInlineKeyboardRow(
@@ -44,7 +44,7 @@ func buildProfileKeyboard() tgbotapi.InlineKeyboardMarkup {
 	)
 	return tgbotapi.NewInlineKeyboardMarkup(row1, row2)
 }
-func ShowLanguageSelection(bot interfaces.BotAPI, chatID int64) {
+func (d *Dispatcher)ShowLanguageSelection(chatID int64) {
 	msg := tgbotapi.NewMessage(chatID, "🌐 Выберите язык")
 	row1 := tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("🇷🇺 Русский", "lang_ru"),
@@ -60,12 +60,12 @@ func ShowLanguageSelection(bot interfaces.BotAPI, chatID int64) {
 	)
 	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(row1, row2, row3)
 
-	if _, err := bot.Send(msg); err != nil {
+	if _, err := d.bot.Send(msg); err != nil {
 		log.Error().Err(err).Msg("error showing language selection")
 	}
 
 }
-func ShowEditProfileMenu(bot interfaces.BotAPI, chatID int64) {
+func (d *Dispatcher) ShowEditProfileMenu(chatID int64) {
 	text := `
 	👤🔁 *Обновления профиля*
 	Выберите поле для изменения:
@@ -93,7 +93,7 @@ func ShowEditProfileMenu(bot interfaces.BotAPI, chatID int64) {
 	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = keyboard
 
-	if _, err := bot.Send(msg); err != nil {
+	if _, err := d.bot.Send(msg); err != nil {
 		log.Error().Err(err).Msg("error showing edit menu")
 	}
 

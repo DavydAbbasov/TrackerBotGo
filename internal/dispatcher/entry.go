@@ -25,18 +25,18 @@ func HandleStart(bot interfaces.BotAPI, msg *tgbotapi.Message) {
 
 	//Sending a message with a language selection
 	text := "Choose your language"
-	msssage := tgbotapi.NewMessage(chatID, text)
+	msg1 := tgbotapi.NewMessage(chatID, text)
 	// message.ReplyMarkup = keyboard
-	msssage.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(row1, row2, row3)
+	msg1.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(row1, row2, row3)
 
-	_, err := bot.Send(msssage) //Sends any text, emoji, command, button
+	_, err := bot.Send(msg1) //Sends any text, emoji, command, button
 	if err != nil {
 		log.Error().Err(err).Msg("Error when sending the /start")
 	}
 
 }
 
-func ShowMainMenu(bot interfaces.BotAPI, chatID int64) {
+func (d *Dispatcher)ShowMainMenu( chatID int64) {
 
 	buttonMyAccount := tgbotapi.NewKeyboardButton("👤My account")
 	buttonTrack := tgbotapi.NewKeyboardButton("📈Track")
@@ -56,7 +56,7 @@ func ShowMainMenu(bot interfaces.BotAPI, chatID int64) {
 	msg := tgbotapi.NewMessage(chatID, "🏠")
 	msg.ReplyMarkup = keyboard
 
-	_, err := bot.Send(msg)
+	_, err := d.bot.Send(msg)
 	if err != nil {
 		log.Error().Err(err).Msg("err showing menu")
 	}

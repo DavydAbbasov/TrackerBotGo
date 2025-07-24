@@ -30,37 +30,23 @@ func ShowLearningMenu(bot interfaces.BotAPI, chatID int64) {
 	}
 }
 
-// "контекст взаимодействия" с пользователем.
-// моделируешь этапы взаимодействия с пользователем и для каждого этапа сохраняешь нужную информацию.
 type UserState struct {
-	State string /* <--- ключ для управления поведением
-		ключевое поле, которое хранит текущее "состояние" пользователя.
-		Узнать, что сейчас делает пользователь
-
-	| Значение `State`                | Что это означает                           |
-	| ------------------------------- | ------------------------------------------ |
-	| `"waiting_for_collection_name"` | пользователь должен ввести имя подборки    |
-	| `"collection_created"`          | подборка создана, ждём действий            |
-	| `"waiting_for_word"`            | пользователь должен ввести слово           |
-	| `"waiting_for_translation"`     | пользователь должен ввести перевод к слову |
-	*/
-	CurrentColl  string // CurrentТекущийCollсбор - имя подборки, в которую добавляем слова. Если пользователь создаёт подборку, нужно знать её имя
-	PendingWorld string // PendingОжидающее слово -  временно запоминаем слово, ждём перевода. Когда пользователь вводит слово, а потом перевод — надо запомнить слово
+	State        string
+	CurrentColl  string
+	PendingWorld string
 }
 type Collections struct {
-	TextInput1 string //первый ввод
-	TextInput2 string //второй ввод
+	TextInput1 string
+	TextInput2 string
 }
-type Collection struct { //[]Collection → список всех коллекций пользователя
+type Collection struct {
 	NameCollection string
-	Collections    []Collections //[]Collections → стркуктура колекции
+	Collections    []Collections
 }
 
-var UserStates = map[int64]*UserState{} // используется при создании подборки, когда мы отслеживаем состояние
+var UserStates = map[int64]*UserState{}
 
-var userCollections = map[int64][]Collection{} //Это глобальная переменная — мапа (map), в которой:
-// int64 — ключ — это userID, уникальный ID каждого пользователя Telegram.
-// []Collection — значение — список подборок (collections), принадлежащих этому пользователю.
+var userCollections = map[int64][]Collection{}
 
 func buuildLerningKeyboard() tgbotapi.InlineKeyboardMarkup {
 	row1 := tgbotapi.NewInlineKeyboardRow(
@@ -76,7 +62,7 @@ func buuildLerningKeyboard() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(row1, row2, row3)
 }
 
-func AddCollection(bot interfaces.BotAPI, chatID int64) {
+func (d *Dispatcher) AddCollection(chatID int64) {
 
 	UserStates[chatID] = &UserState{
 		State: "waiting_for_collection_name",
@@ -95,12 +81,12 @@ func AddCollection(bot interfaces.BotAPI, chatID int64) {
 	msg := tgbotapi.NewMessage(chatID, "📝")
 	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = replyMenu
-	if _, err := bot.Send(msg); err != nil {
+	if _, err := d.bot.Send(msg); err != nil {
 		log.Error().Err(err).Msg("err showing learning")
 	}
 	msg1 := tgbotapi.NewMessage(chatID, "✏️ Введите имя новой подборки:")
 
-	if _, err := bot.Send(msg1); err != nil {
+	if _, err := d.bot.Send(msg1); err != nil {
 		log.Error().Err(err).Msg("err showing learning")
 	}
 
@@ -116,68 +102,59 @@ func GetLearningMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 		),
 	)
 }
-func ProcessCollectionCreation(bot interfaces.BotAPI, msg *tgbotapi.Message) {
-	//начало обработки кнопки создать подборку
+func (d *Dispatcher) ProcessCollectionCreation(msg *tgbotapi.Message) {
 	userID := msg.From.ID
 	chatID := msg.Chat.ID
 	input := strings.TrimSpace(msg.Text)
 
-	// фильтруем кнопки
 	if input == "ℹ️ Помощь" {
-		bot.Send(tgbotapi.NewMessage(chatID, "помощи нет"))
+		d.bot.Send(tgbotapi.NewMessage(chatID, "помощи нет"))
 		return
 	}
 
 	if input == "↩ Назад Home" {
-		delete(UserStates, userID) //после возврата в главное меню бот забыл текущее состояние
-		// и не воспринимал следующую фразу как имя подборки.
-		ShowMainMenu(bot, chatID)
+		delete(UserStates, userID)
+		d.ShowMainMenu(chatID)
 		return
 	}
 
 	if input == "" || len(input) < 2 {
 		msg := tgbotapi.NewMessage(chatID, "⚠️ Имя подборки не может быть пустым. Пожалуйста, введите название.")
-		bot.Send(msg)
+		d.bot.Send(msg)
 		return
 	}
 
-	// 2. Сохраняем введённое имя //Обновляем userState
 	state := UserStates[userID]
-	// 3. Обновляем состояние
 	state.CurrentColl = input
 	state.State = "collection_created"
 
-	// 4. Формируем сообщение с подтверждением
 	confirmMsg := tgbotapi.NewMessage(chatID, fmt.Sprintf("📚 Подборка *%s* сохранена!", input))
 	confirmMsg.ParseMode = "Markdown"
 	confirmMsg.ReplyMarkup = GetLearningMenuKeyboard()
-	if _, err := bot.Send(confirmMsg); err != nil {
+	if _, err := d.bot.Send(confirmMsg); err != nil {
 		log.Error().Err(err).Msg("err showing learning")
 	}
 
-	// Здесь добавляем подборку в список пользователя
 	userCollections[userID] = append(userCollections[userID], Collection{
 		NameCollection: input,
 		Collections:    []Collections{},
 	})
 
 	followupMsg := tgbotapi.NewMessage(chatID, "➕ Теперь вы можете добавить слова для изучения.")
-	bot.Send(followupMsg)
+	d.bot.Send(followupMsg)
 }
 
-func SowUserCollections(bot interfaces.BotAPI, chatID int64, userID int64) {
+func (d *Dispatcher) SowUserCollections(chatID int64, userID int64) {
 
 	collections := userCollections[userID]
 
 	if len(collections) == 0 {
 		msg := tgbotapi.NewMessage(chatID, "❌ У вас пока нет подборок.")
-		if _, err := bot.Send(msg); err != nil {
+		if _, err := d.bot.Send(msg); err != nil {
 			log.Error().Err(err).Msg("ошибка при отправке сообщения")
 			return
 		}
-
 	}
-
 	var rows [][]tgbotapi.InlineKeyboardButton
 
 	for _, coll := range collections {
@@ -194,7 +171,7 @@ func SowUserCollections(bot interfaces.BotAPI, chatID int64, userID int64) {
 	msg := tgbotapi.NewMessage(chatID, "📂 Ваши подборки:")
 	msg.ReplyMarkup = keyboard
 
-	if _, err := bot.Send(msg); err != nil {
+	if _, err := d.bot.Send(msg); err != nil {
 		log.Error().Err(err).Msg("ошибка при отправке сообщения подборки")
 		return
 	}

@@ -3,3 +3,6 @@
 /vendor
 # Ignore database data only
 database/postgres/data/
+.database/
+*.log
+*.tmp

@@ -1,71 +1,73 @@
+// handles logic, routing, and handler delegation.
 package dispatcher
 
-/*
-дирижёр, маршрутизатор
-Запускает цикл получения апдейтов (Start)
-Определяет, что за команда пришла, и кому её передать
-Не должен сам обрабатывать команды — он только направляет.
-*/
 import (
 	"github.com/DavydAbbasov/trecker_bot/pkg/interfaces"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// Она будет запускать цикл получения апдейтов и направлять их по маршрутам
-func Start(bot interfaces.BotAPI) {
+type Dispatcher struct {
+	bot interfaces.BotAPI
+}
+
+func New(bot interfaces.BotAPI) *Dispatcher {
+	return &Dispatcher{
+		bot: bot,
+	}
+}
+func (d *Dispatcher) Run() {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
-
-	updates := bot.GetUpdatesChan(u)
+	updates := d.bot.GetUpdatesChan(u)
 
 	for update := range updates {
-		// 1. Инлайн-кнопки (callback)
-		if update.CallbackQuery != nil {
-			handleCallbackQuery(bot, update.CallbackQuery)
-			continue
+		switch {
+		case update.CallbackQuery != nil:
+			d.RunCallback(update.CallbackQuery) //log
+			ctx := d.newCallbackContext(update.CallbackQuery)
+			d.handlePrefixRoute(ctx)
+			d.handleExactRoute(ctx)
+		case update.Message != nil:
+			d.handleMessage(update.Message)
 		}
-		// 2. Сообщение отсутствует — пропускаем
-		if update.Message == nil {
-			continue
-		}
+	}
+}
 
-		// 1. Проверяем, есть ли состояние
-		userID := update.Message.From.ID
+func (d *Dispatcher) handleMessage(msg *tgbotapi.Message) {
+	userID := msg.From.ID
 
-		if state, ok := UserStates[userID]; ok && state.State == "waiting_for_collection_name" {
-			ProcessCollectionCreation(bot, update.Message)
-			continue
-		}
-		if state, ok := TrackingUserStates[userID]; ok && state.State == "waiting_for_activity_name" {
-			ProcessAddActivity(bot, update.Message)
-			continue
-		}
+	if state, ok := UserStates[userID]; ok && state.State == "waiting_for_collection_name" {
+		d.ProcessCollectionCreation(msg)
+		return
+	}
+	if state, ok := TrackingUserStates[userID]; ok && state.State == "waiting_for_activity_name" {
+		d.ProcessAddActivity(msg)
+		return
+	}
+	if msg.IsCommand() {
+		d.handleCommand(msg)
+		return
+	}
 
-		// 3. Команды (начинаются с "/")
-		if update.Message.IsCommand() {
+	switch msg.Text {
+	case "👤My account":
+		ShowProfileMock(d.bot, msg.Chat.ID)
+	case "📈Track":
+		ShowTrackingMenu(d.bot, msg.Chat.ID)
+	case "🧠Learning":
+		ShowLearningMenu(d.bot, msg.Chat.ID)
+	case "💳Subscription":
+		ShowSubscriptionMenu(d.bot, msg.Chat.ID)
+	case "↩ Назад Home":
+		d.ShowMainMenu(msg.Chat.ID)
+	case "📅 Период":
+		d.ShowCalendar(msg.Chat.ID)
+	}
+}
 
-			switch update.Message.Command() {
-			case "start":
-				HandleStart(bot, update.Message)
-
-			}
-
-			continue
-		}
-		// 4. Текстовые кнопки (обычные сообщения)
-		switch update.Message.Text {
-		case "👤My account":
-			ShowProfileMock(bot, update.Message.Chat.ID)
-		case "📈Track":
-			ShowTrackingMenu(bot, update.Message.Chat.ID)
-		case "🧠Learning":
-			ShowLearningMenu(bot, update.Message.Chat.ID)
-		case "💳Subscription":
-			ShowSubscriptionMenu(bot, update.Message.Chat.ID)
-		case "↩ Назад Home":
-			ShowMainMenu(bot, update.Message.Chat.ID)
-		case "📅 Период":
-			ShowCalendar(bot, update.Message.Chat.ID, "🦫Go")
-		}
+func (d *Dispatcher) handleCommand(msg *tgbotapi.Message) {
+	switch msg.Command() {
+	case "/start":
+		HandleStart(d.bot, msg)
 	}
 }

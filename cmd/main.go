@@ -16,18 +16,10 @@ import (
 	log "github.com/rs/zerolog/log"
 )
 
-// var wg sync.WaitGroup
-// Здесь управляется жизненный цикл приложения.
 func main() {
-	// 1. Загружаем конфигурацию из .env
-	cfg := config.Load()
-	/*Загрузи .env файл
-	2.Прочитай из него переменные
-	3.Помести всё в структуру
-	4.Config Сохрани в переменную cfg
-	*/
 
-	// 2. Инициализируем Telegram-бота
+	cfg := config.Load()
+
 	tgBot, err := bot.New(cfg)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("error initialization bot : %v\n", err)
@@ -35,24 +27,19 @@ func main() {
 
 	fmt.Println("START APP")
 
-	dispatcher.Start(tgBot)
+	dispatcher.New(tgBot)
 
-	// 3. Запускаем обработку команд (логика команд — в dispatcher)
-	// go dispatcher.Start(tgBot)
-	// 4. Ожидаем сигнал завершения (Ctrl+C, kill и т.д.)
 	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGINT)
+	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGINT)
 
 	<-signalChan
 	log.Info().Msg("telegram bot gracefully shutdown")
 
-	// 5. Завершаем соединения (бот, БД)
 	waitForShutdown(tgBot, nil)
 
 	log.Info().Msg("telegram bot is shutdown")
 }
 
-// Завершение соединений (бот и база данных)
 func waitForShutdown(tgBot interfaces.BotAPI, db *sql.DB) {
 
 	fmt.Println("The completion signal has been received. Completing the work.")
