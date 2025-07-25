@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DavydAbbasov/trecker_bot/pkg/interfaces"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/rs/zerolog/log"
 )
@@ -31,7 +30,7 @@ type TimeEntry struct {
 
 var ActivityCollections = map[int64][]Activity{}
 
-func ShowTrackingMenu(bot interfaces.BotAPI, chatID int64) {
+func (d *Dispatcher) ShowTrackingMenu(chatID int64) {
 	text := `
 📈 *Track*
 
@@ -45,7 +44,7 @@ func ShowTrackingMenu(bot interfaces.BotAPI, chatID int64) {
 	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = buildTrackKeyboard()
 
-	_, err := bot.Send(msg)
+	_, err := d.bot.Send(msg)
 	if err != nil {
 		log.Error().Err(err).Msg("err showing profil")
 
@@ -65,7 +64,7 @@ func buildTrackKeyboard() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(row1, row2)
 
 }
-func(d *Dispatcher) ShowActivityList(chatID int64, userID int64) {
+func (d *Dispatcher) ShowActivityList(chatID int64, userID int64) {
 	text := "📋 Выберите активность для отчёта:"
 
 	activities := ActivityCollections[userID]
@@ -219,7 +218,7 @@ func (d *Dispatcher) ShowCalendar(chatID int64) {
 		log.Error().Err(err).Msg("error showing calendar inlain")
 	}
 }
-func (d* Dispatcher)AddActivity(chatID int64) {
+func (d *Dispatcher) AddActivity(chatID int64) {
 	text := `
 📌 *Создание новой активности*
 
@@ -263,28 +262,29 @@ func GetActivityMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 	)
 
 }
-func (d *Dispatcher)ProcessAddActivity(msg *tgbotapi.Message) {
-	userID := msg.From.ID
-	chatID := msg.Chat.ID
-	input := strings.TrimSpace(msg.Text)
+
+func (d *Dispatcher) ProcessAddActivity(ctx *MsgContext) {
+	// userID := msg.From.ID
+	// chatID := msg.Chat.ID
+	input := strings.TrimSpace(ctx.Text)
 
 	if input == "ℹ️ Помощь" {
-		d.bot.Send(tgbotapi.NewMessage(chatID, "времено не доступно"))
+		d.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "времено не доступно"))
 		return
 	}
 
 	if input == "" {
-		delete(TrackingUserStates, userID) //Удаляем пользователя из карты состояний
-		d.ShowMainMenu(chatID)
+		delete(TrackingUserStates, ctx.UserID) //Удаляем пользователя из карты состояний
+		d.ShowMainMenu(ctx.ChatID)
 		return
 	}
 
-	state := TrackingUserStates[userID]
+	state := TrackingUserStates[ctx.UserID]
 	state.CurrentName = input
 	state.State = "activity_created"
 
 	text := fmt.Sprintf("Ваша активность:%s,создана", input)
-	confirmMsg := tgbotapi.NewMessage(chatID, text)
+	confirmMsg := tgbotapi.NewMessage(ctx.ChatID, text)
 	confirmMsg.ParseMode = "Markdown"
 
 	repluMenu := GetActivityMenuKeyboard()
@@ -294,16 +294,16 @@ func (d *Dispatcher)ProcessAddActivity(msg *tgbotapi.Message) {
 		log.Error().Err(err).Msg("err showing add_activity")
 	}
 
-	ActivityCollections[userID] = append(ActivityCollections[userID], Activity{
+	ActivityCollections[ctx.UserID] = append(ActivityCollections[ctx.UserID], Activity{
 		NameActivity: input,
 		TimeEntry:    []TimeEntry{},
 	})
 
-	followupMsg := tgbotapi.NewMessage(chatID, "➕ Теперь вы можете добавить таймер для трекинга.")
+	followupMsg := tgbotapi.NewMessage(ctx.ChatID, "➕ Теперь вы можете добавить таймер для трекинга.")
 	d.bot.Send(followupMsg)
 
 }
-func (d *Dispatcher)SelectionActivityPromt(chatID int64, userID int64) {
+func (d *Dispatcher) SelectionActivityPromt(chatID int64, userID int64) {
 	text := `
 📂 *Выбрать активность*
 

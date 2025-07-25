@@ -4,31 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DavydAbbasov/trecker_bot/pkg/interfaces"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/rs/zerolog/log"
 )
 
-func ShowLearningMenu(bot interfaces.BotAPI, chatID int64) {
-	text := `
-🧠 *Learning*
 
-🌐 Язык: *Английский 🇬🇧* 
-📊 Добавлено слов: *463*  
-📘 На сегодня: *10*  
-✅ Выучено: *296*  
-🕐 Следующее слово: *через 25 мин*
-
-`
-	msg := tgbotapi.NewMessage(chatID, text)
-	msg.ParseMode = "Markdown"
-	msg.ReplyMarkup = buuildLerningKeyboard()
-
-	_, err := bot.Send(msg)
-	if err != nil {
-		log.Error().Err(err).Msg("err showing learning")
-	}
-}
 
 type UserState struct {
 	State        string
@@ -48,6 +28,26 @@ var UserStates = map[int64]*UserState{}
 
 var userCollections = map[int64][]Collection{}
 
+func (d *Dispatcher) ShowLearningMenu(chatID int64) {
+	text := `
+🧠 *Learning*
+
+🌐 Язык: *Английский 🇬🇧* 
+📊 Добавлено слов: *463*  
+📘 На сегодня: *10*  
+✅ Выучено: *296*  
+🕐 Следующее слово: *через 25 мин*
+
+`
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = "Markdown"
+	msg.ReplyMarkup = buuildLerningKeyboard()
+
+	_, err := d.bot.Send(msg)
+	if err != nil {
+		log.Error().Err(err).Msg("err showing learning")
+	}
+}
 func buuildLerningKeyboard() tgbotapi.InlineKeyboardMarkup {
 	row1 := tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("➕ Создать подборку", "add_collection"),
@@ -102,45 +102,44 @@ func GetLearningMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 		),
 	)
 }
-func (d *Dispatcher) ProcessCollectionCreation(msg *tgbotapi.Message) {
-	userID := msg.From.ID
-	chatID := msg.Chat.ID
-	input := strings.TrimSpace(msg.Text)
+func (d *Dispatcher) ProcessCollectionCreation(ctx *MsgContext) {
+
+	input := strings.TrimSpace(ctx.Text)
 
 	if input == "ℹ️ Помощь" {
-		d.bot.Send(tgbotapi.NewMessage(chatID, "помощи нет"))
+		d.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "помощи нет"))
 		return
 	}
 
 	if input == "↩ Назад Home" {
-		delete(UserStates, userID)
-		d.ShowMainMenu(chatID)
+		delete(UserStates, ctx.UserID)
+		d.ShowMainMenu(ctx.ChatID)
 		return
 	}
 
 	if input == "" || len(input) < 2 {
-		msg := tgbotapi.NewMessage(chatID, "⚠️ Имя подборки не может быть пустым. Пожалуйста, введите название.")
+		msg := tgbotapi.NewMessage(ctx.ChatID, "⚠️ Имя подборки не может быть пустым. Пожалуйста, введите название.")
 		d.bot.Send(msg)
 		return
 	}
 
-	state := UserStates[userID]
+	state := UserStates[ctx.UserID]
 	state.CurrentColl = input
 	state.State = "collection_created"
 
-	confirmMsg := tgbotapi.NewMessage(chatID, fmt.Sprintf("📚 Подборка *%s* сохранена!", input))
+	confirmMsg := tgbotapi.NewMessage(ctx.ChatID, fmt.Sprintf("📚 Подборка *%s* сохранена!", input))
 	confirmMsg.ParseMode = "Markdown"
 	confirmMsg.ReplyMarkup = GetLearningMenuKeyboard()
 	if _, err := d.bot.Send(confirmMsg); err != nil {
 		log.Error().Err(err).Msg("err showing learning")
 	}
 
-	userCollections[userID] = append(userCollections[userID], Collection{
+	userCollections[ctx.UserID] = append(userCollections[ctx.UserID], Collection{
 		NameCollection: input,
 		Collections:    []Collections{},
 	})
 
-	followupMsg := tgbotapi.NewMessage(chatID, "➕ Теперь вы можете добавить слова для изучения.")
+	followupMsg := tgbotapi.NewMessage(ctx.ChatID, "➕ Теперь вы можете добавить слова для изучения.")
 	d.bot.Send(followupMsg)
 }
 

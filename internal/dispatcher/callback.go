@@ -8,6 +8,7 @@ import (
 	log "github.com/rs/zerolog/log"
 )
 
+// uses pointers ?
 type CallbackContext struct {
 	Callback     *tgbotapi.CallbackQuery
 	ChatID       int64
@@ -17,21 +18,9 @@ type CallbackContext struct {
 }
 
 // pre-routing
-func (d *Dispatcher) newCallbackContext(callback *tgbotapi.CallbackQuery) *CallbackContext {
-
-	data := callback.Data
-	return &CallbackContext{
-		Callback: callback,
-		ChatID:   callback.Message.Chat.ID,
-		UserID:   callback.From.ID,
-		Data:     data,
-	}
-}
-
-// pre-routing
 func (d *Dispatcher) RunCallback(callback *tgbotapi.CallbackQuery) {
 	if callback == nil || callback.Message == nil {
-		log.Warn().Msg("Received nil callback or message in callback")
+		log.Warn().Msg("CallbackQuery: nil callback tgbotapi.CallbackQuery")
 		return
 
 	} else {
@@ -52,6 +41,15 @@ func (d *Dispatcher) RunCallback(callback *tgbotapi.CallbackQuery) {
 	}
 }
 
+// pre-routing
+func (d *Dispatcher) newCallbackContext(callback *tgbotapi.CallbackQuery) *CallbackContext {
+	return &CallbackContext{
+		Callback: callback,
+		ChatID:   callback.Message.Chat.ID,
+		UserID:   callback.From.ID,
+		Data:     callback.Data,
+	}
+}
 func (d *Dispatcher) handlePrefixRoute(ctx *CallbackContext) bool {
 	// route table
 	prefixHandlers := map[string]func(*CallbackContext){ //?

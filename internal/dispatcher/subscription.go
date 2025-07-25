@@ -1,12 +1,11 @@
 package dispatcher
 
 import (
-	"github.com/DavydAbbasov/trecker_bot/pkg/interfaces"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/rs/zerolog/log"
 )
 
-func ShowSubscriptionMenu(bot interfaces.BotAPI, chatID int64) {
+func (d *Dispatcher) ShowSubscriptionMenu(chatID int64) {
 	text := `
 💳*Subscription*
 
@@ -20,7 +19,7 @@ func ShowSubscriptionMenu(bot interfaces.BotAPI, chatID int64) {
 	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = buildSubscriptionKeyboard()
 
-	_, err := bot.Send(msg)
+	_, err := d.bot.Send(msg)
 	if err != nil {
 		log.Error().Err(err).Msg("err showing Subscription")
 
