@@ -1,5 +1,5 @@
 // handles logic, routing, and handler delegation.
-package dispatcher
+package handlers
 
 import (
 	"github.com/DavydAbbasov/trecker_bot/pkg/interfaces"
@@ -17,15 +17,16 @@ type MsgContext struct {
 	Text    string
 }
 
-func New(bot interfaces.BotAPI) *Dispatcher {
-	if bot == nil {
-		log.Warn().Msg("Dispatcher: nil bot interfaces.BotAPI")
-	}
+// Flush реализует интерфейс Flushable
+func (d *Dispatcher) Flush() error { //?
+	log.Info().Msg("dispatcher: flush called")
+	return nil
+}
 
-	return &Dispatcher{
-		bot: bot,
-	}
-
+// Close реализует интерфейс Flushable
+func (d *Dispatcher) Close() error { //?
+	log.Info().Msg("dispatcher: close called")
+	return nil
 }
 func (d *Dispatcher) Run() {
 
@@ -37,9 +38,26 @@ func (d *Dispatcher) Run() {
 		switch {
 		case update.CallbackQuery != nil:
 			d.RunCallback(update.CallbackQuery)
+
+			//IsCommand должен идти первым среди сообщений,
+			// иначе update.Message != nil перехватывает все сообщения.
+		case update.Message != nil && update.Message.IsCommand():
+			d.HandleCommand(update.Message)
+
 		case update.Message != nil:
 			d.handleMessage(update.Message)
+
 		}
+	}
+
+}
+func New(bot interfaces.BotAPI) *Dispatcher {
+	if bot == nil {
+		log.Fatal().Msg("Dispatcher: nil bot interfaces.BotAPI")
+	}
+
+	return &Dispatcher{
+		bot: bot,
 	}
 
 }
@@ -51,13 +69,9 @@ func (d *Dispatcher) newMessageContext(msg *tgbotapi.Message) *MsgContext {
 		Text:    msg.Text,
 	}
 }
-func (d *Dispatcher) handleMessage(msg *tgbotapi.Message) {//почему я тут передаю tgbotapi.Message
+func (d *Dispatcher) handleMessage(msg *tgbotapi.Message) { //почему я тут передаю tgbotapi.Message
 	ctx := d.newMessageContext(msg)
 
-	if msg.IsCommand() { //?
-		d.handleCommand(msg)
-		return
-	}
 	if d.handleUserState(ctx) {
 		return
 	}
@@ -66,12 +80,7 @@ func (d *Dispatcher) handleMessage(msg *tgbotapi.Message) {//почему я т�
 	}
 
 }
-func (d *Dispatcher) handleCommand(msg *tgbotapi.Message) {
-	switch msg.Command() {
-	case "/start":
-		HandleStart(d.bot, msg)//
-	}
-}
+
 func (d *Dispatcher) handleUserState(ctx *MsgContext) bool {
 
 	if state, ok := UserStates[ctx.UserID]; ok && state.State == "waiting_for_collection_name" {

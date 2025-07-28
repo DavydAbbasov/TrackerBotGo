@@ -1,38 +1,29 @@
 package config
 
 import (
-	"log"
 	"os"
 
-	"github.com/joho/godotenv"
+	"github.com/ilyakaznacheev/cleanenv"
+	log "github.com/rs/zerolog/log"
 )
 
-
 type Config struct {
-	TelegramToken    string `env:"telegram_token"`   
-	TelegramBotDebug bool   `env:"telegram_bot_debug"`  
-	DBHost           string `env:"db_host"`            
-	DBPORT           string `env:"db_port"`            
-
+	TelegramToken    string `env:"telegram_token"`
+	TelegramBotDebug bool   `env:"telegram_bot_debug"`
+	DBHost           string `env:"db_host"`
+	DBPORT           string `env:"db_port"`
 }
 
-
-func Load() *Config {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+func MustLoadConfig(configPath string) *Config {
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		log.Fatal().Msg("config file does not exist: " + configPath)
 	}
 
-	cfg := &Config{
-		TelegramToken:    os.Getenv("TELEGRAM_TOKEN"),
-		TelegramBotDebug: os.Getenv("TELEGRAM_BOT_DEBUG") == "true",
-		DBHost:           os.Getenv("DB_HOST"),
-		DBPORT:           os.Getenv("DB_PORT"),
+	var cfg Config
+
+	if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
+		log.Fatal().Msg("cannot read config: " + err.Error())
 	}
 
-	if cfg.TelegramToken == "" {
-		log.Fatal("TELEGRAM_TOKEN is not set in the environment variables")
-	}
-	return cfg
+	return &cfg
 }
-

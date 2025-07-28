@@ -3,6 +3,10 @@ package interfaces
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
+type Flushable interface {
+	Flush() error
+	Close() error
+}
 
 // BotAPI defines minimal contract for Telegram bot operations used in the app.
 type BotAPI interface {

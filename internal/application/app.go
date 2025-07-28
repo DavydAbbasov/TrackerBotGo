@@ -2,7 +2,9 @@
 package application
 
 import (
-	"github.com/DavydAbbasov/trecker_bot/internal/dispatcher"
+	"context"
+
+	"github.com/DavydAbbasov/trecker_bot/internal/handlers"
 	"github.com/DavydAbbasov/trecker_bot/pkg/interfaces"
 
 	"github.com/DavydAbbasov/trecker_bot/config"
@@ -11,10 +13,10 @@ import (
 )
 
 type App struct {
-	bot      interfaces.BotAPI
-	cfg      *config.Config
-	dispatcher *dispatcher.Dispatcher
-	shutdown chan struct{}
+	bot        interfaces.BotAPI
+	cfg        *config.Config
+	handlers   *handlers.Dispatcher
+	flushables []interfaces.Flushable //?
 }
 
 func New(cfg *config.Config) *App {
@@ -26,24 +28,36 @@ func New(cfg *config.Config) *App {
 	bot.Debug = cfg.TelegramBotDebug
 	log.Info().Msgf("avtorisation as: %s", bot.Self.UserName)
 
-	dispatcher := dispatcher.New(bot)
+	handlers := handlers.New(bot)
+	flushables := []interfaces.Flushable{ //?
+		handlers,
+		// в будущем: db, cache, queue
+	}
 
 	return &App{
-		bot: bot,
-		cfg: cfg,
-		dispatcher: dispatcher,
+		bot:        bot,
+		cfg:        cfg,
+		handlers:   handlers,
+		flushables: flushables,
 	}
 }
-func (a *App) Run() {
-	a.dispatcher.Run()
+func (a *App) Run(ctx context.Context) error { //?
+	go a.handlers.Run()
 
-	log.Info().Msg("telegram bot gracefully shutdown")
+	<-ctx.Done()
+
+	log.Info().Msg("shutdown initiated")
+	a.bot.StopReceivingUpdates()
+
+	for _, f := range a.flushables {
+		if err := f.Flush(); err != nil {
+			log.Error().Err(err).Msg("flush failed")
+		}
+		if err := f.Close(); err != nil {
+			log.Error().Err(err).Msg("close failed")
+		}
+	}
+
+	log.Info().Msg("Shutdown complete")
+	return nil
 }
-
-// func (a *App)dispatcher(updates tgbotapi.UpdatesChannel){
-// 	for 
-// }
-
-// func(d *Dispatcher)Dispatcher(updates tgbotapi.UpdatesChannel){
-	
-// }

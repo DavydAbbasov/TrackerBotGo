@@ -1,4 +1,4 @@
-package dispatcher
+package handlers
 
 import (
 	"github.com/DavydAbbasov/trecker_bot/pkg/interfaces"
