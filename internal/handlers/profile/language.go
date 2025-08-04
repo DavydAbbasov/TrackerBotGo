@@ -1,10 +1,11 @@
-package handlers
+package profile
 
 import (
+	"github.com/DavydAbbasov/trecker_bot/internal/dispatcher/context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func (d *Dispatcher) LanguageChange(chatID int64, ctx *CallbackContext) {
+func (d *ProfileModule) LanguageChange(ctx *context.CallbackContext) {
 	langMap := map[string]string{
 		"lang_en":   "Language set to English.",
 		"lang_ru":   "Язык установлен: русский.",
@@ -18,7 +19,7 @@ func (d *Dispatcher) LanguageChange(chatID int64, ctx *CallbackContext) {
 	if !ok {
 		replyText = "Unknown language selected"
 	}
-	
+
 	// Уведомление Telegram, что мы обработали callback
 	d.bot.Send(tgbotapi.NewCallback(ctx.Callback.ID, ""))
 
@@ -28,6 +29,11 @@ func (d *Dispatcher) LanguageChange(chatID int64, ctx *CallbackContext) {
 	// Отправляем сообщение об успешной смене языка
 	d.bot.Send(tgbotapi.NewMessage(ctx.ChatID, replyText))
 
+	// Преобразуем CallbackContext → MsgContext
+	msgCtx := &context.MsgContext{
+		ChatID: ctx.ChatID,
+		UserID: ctx.UserID,
+	}
 	// Показываем главное меню
-	d.ShowMainMenu(ctx.ChatID)
+	d.entry.ShowMainMenu(msgCtx)
 }

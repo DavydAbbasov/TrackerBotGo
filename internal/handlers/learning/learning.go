@@ -1,34 +1,50 @@
-package handlers
+package learning
 
 import (
 	"fmt"
 	"strings"
 
+	"github.com/DavydAbbasov/trecker_bot/interfaces"
+	"github.com/DavydAbbasov/trecker_bot/internal/dispatcher/context"
+	"github.com/DavydAbbasov/trecker_bot/internal/handlers/entry"
+	"github.com/DavydAbbasov/trecker_bot/storage"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/rs/zerolog/log"
 )
 
+// type UserState struct {
+// 	State        string
+// 	CurrentColl  string
+// 	PendingWorld string
+// }
+// type Collections struct {
+// 	TextInput1 string
+// 	TextInput2 string
+// }
+// type Collection struct {
+// 	NameCollection string
+// 	Collections    []Collections
+// }
 
+// var UserStates = map[int64]*UserState{}
 
-type UserState struct {
-	State        string
-	CurrentColl  string
-	PendingWorld string
+// var userCollections = map[int64][]Collection{}
+type LearningModule struct {
+	bot             interfaces.BotAPI
+	fsm             interfaces.FSMManager
+	entry           *entry.EntryModule
+	learningStorage storage.LearningStorage
 }
-type Collections struct {
-	TextInput1 string
-	TextInput2 string
+
+func New(bot interfaces.BotAPI, fsm interfaces.FSMManager, entry *entry.EntryModule, learningStorage storage.LearningStorage) *LearningModule {
+	return &LearningModule{
+		bot:             bot,
+		fsm:             fsm,
+		entry:           entry,
+		learningStorage: learningStorage,
+	}
 }
-type Collection struct {
-	NameCollection string
-	Collections    []Collections
-}
-
-var UserStates = map[int64]*UserState{}
-
-var userCollections = map[int64][]Collection{}
-
-func (d *Dispatcher) ShowLearningMenu(chatID int64) {
+func (l *LearningModule) ShowLearningMenu(ctx *context.MsgContext) {
 	text := `
 🧠 *Learning*
 
@@ -39,11 +55,11 @@ func (d *Dispatcher) ShowLearningMenu(chatID int64) {
 🕐 Следующее слово: *через 25 мин*
 
 `
-	msg := tgbotapi.NewMessage(chatID, text)
+	msg := tgbotapi.NewMessage(ctx.ChatID, text)
 	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = buuildLerningKeyboard()
 
-	_, err := d.bot.Send(msg)
+	_, err := l.bot.Send(msg)
 	if err != nil {
 		log.Error().Err(err).Msg("err showing learning")
 	}
@@ -62,11 +78,12 @@ func buuildLerningKeyboard() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(row1, row2, row3)
 }
 
-func (d *Dispatcher) AddCollection(chatID int64) {
+func (l *LearningModule) AddCollection(ctx *context.CallbackContext) {
 
-	UserStates[chatID] = &UserState{
-		State: "waiting_for_collection_name",
-	}
+	l.fsm.Set(ctx.UserID, "waiting_for_collection_name")
+	// UserStates[chatID] = &UserState{
+	// 	State: "waiting_for_collection_name",
+	// }
 
 	replyMenu := tgbotapi.NewReplyKeyboard(
 
@@ -78,15 +95,15 @@ func (d *Dispatcher) AddCollection(chatID int64) {
 
 	replyMenu.ResizeKeyboard = true
 
-	msg := tgbotapi.NewMessage(chatID, "📝")
+	msg := tgbotapi.NewMessage(ctx.ChatID, "📝")
 	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = replyMenu
-	if _, err := d.bot.Send(msg); err != nil {
+	if _, err := l.bot.Send(msg); err != nil {
 		log.Error().Err(err).Msg("err showing learning")
 	}
-	msg1 := tgbotapi.NewMessage(chatID, "✏️ Введите имя новой подборки:")
+	msg1 := tgbotapi.NewMessage(ctx.ChatID, "✏️ Введите имя новой подборки:")
 
-	if _, err := d.bot.Send(msg1); err != nil {
+	if _, err := l.bot.Send(msg1); err != nil {
 		log.Error().Err(err).Msg("err showing learning")
 	}
 
@@ -102,54 +119,66 @@ func GetLearningMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 		),
 	)
 }
-func (d *Dispatcher) ProcessCollectionCreation(ctx *MsgContext) {
+func (l *LearningModule) ProcessCollectionCreation(ctx *context.MsgContext) {
 
 	input := strings.TrimSpace(ctx.Text)
 
 	if input == "ℹ️ Помощь" {
-		d.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "помощи нет"))
+		l.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "помощи нет"))
 		return
 	}
 
 	if input == "↩ Назад Home" {
-		delete(UserStates, ctx.UserID)
-		d.ShowMainMenu(ctx.ChatID)
+		l.fsm.Reset(ctx.UserID)
+		// delete(UserStates, ctx.UserID)
+		l.entry.ShowMainMenu(ctx)
 		return
 	}
 
 	if input == "" || len(input) < 2 {
 		msg := tgbotapi.NewMessage(ctx.ChatID, "⚠️ Имя подборки не может быть пустым. Пожалуйста, введите название.")
-		d.bot.Send(msg)
+		l.bot.Send(msg)
 		return
 	}
+	// t.fsm.Set(ctx.UserID, "activity_created")
+	// t.fsm.SetData(ctx.UserID, "activity_name", input)
 
-	state := UserStates[ctx.UserID]
-	state.CurrentColl = input
-	state.State = "collection_created"
+	// l.fsm.Set(ctx.UserID, "collection_created")
+	// l.fsm.SetData(ctx.UserID, "createdivity_name", input)
+	l.fsm.Reset(ctx.UserID)
+
+	// state := UserStates[ctx.UserID]
+	// state.CurrentColl = input
+	// state.State = "collection_created"
 
 	confirmMsg := tgbotapi.NewMessage(ctx.ChatID, fmt.Sprintf("📚 Подборка *%s* сохранена!", input))
 	confirmMsg.ParseMode = "Markdown"
 	confirmMsg.ReplyMarkup = GetLearningMenuKeyboard()
-	if _, err := d.bot.Send(confirmMsg); err != nil {
+	if _, err := l.bot.Send(confirmMsg); err != nil {
 		log.Error().Err(err).Msg("err showing learning")
 	}
 
-	userCollections[ctx.UserID] = append(userCollections[ctx.UserID], Collection{
+	l.learningStorage.AddCollection(ctx.UserID, storage.Collection{
 		NameCollection: input,
-		Collections:    []Collections{},
+		Collection:     []storage.WordPair{},
 	})
 
+	// userCollections[ctx.UserID] = append(userCollections[ctx.UserID], Collection{
+	// 	NameCollection: input,
+	// 	Collections:    []Collections{},
+	// })
+
 	followupMsg := tgbotapi.NewMessage(ctx.ChatID, "➕ Теперь вы можете добавить слова для изучения.")
-	d.bot.Send(followupMsg)
+	l.bot.Send(followupMsg)
 }
 
-func (d *Dispatcher) SowUserCollections(chatID int64, userID int64) {
+func (l *LearningModule) SowUserCollections(ctx *context.CallbackContext) {
 
-	collections := userCollections[userID]
+	collections := l.learningStorage.ListCollections(ctx.UserID)
 
 	if len(collections) == 0 {
-		msg := tgbotapi.NewMessage(chatID, "❌ У вас пока нет подборок.")
-		if _, err := d.bot.Send(msg); err != nil {
+		msg := tgbotapi.NewMessage(ctx.ChatID, "❌ У вас пока нет подборок.")
+		if _, err := l.bot.Send(msg); err != nil {
 			log.Error().Err(err).Msg("ошибка при отправке сообщения")
 			return
 		}
@@ -167,10 +196,10 @@ func (d *Dispatcher) SowUserCollections(chatID int64, userID int64) {
 
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
 
-	msg := tgbotapi.NewMessage(chatID, "📂 Ваши подборки:")
+	msg := tgbotapi.NewMessage(ctx.ChatID, "📂 Ваши подборки:")
 	msg.ReplyMarkup = keyboard
 
-	if _, err := d.bot.Send(msg); err != nil {
+	if _, err := l.bot.Send(msg); err != nil {
 		log.Error().Err(err).Msg("ошибка при отправке сообщения подборки")
 		return
 	}

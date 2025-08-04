@@ -6,12 +6,13 @@ import (
 	"syscall"
 
 	"github.com/DavydAbbasov/trecker_bot/config"
-	"github.com/DavydAbbasov/trecker_bot/internal/application"
+	"github.com/DavydAbbasov/trecker_bot/application"
 
 	log "github.com/rs/zerolog/log"
 )
 
 func main() {
+
 	if err := run(); err != nil {
 		log.Fatal().Err(err).Msg("application exited with error")
 	}
@@ -20,6 +21,8 @@ func main() {
 
 func run() error {//?
 	cfg := config.MustLoadConfig(".env")
+
+	// fsmManager := fsm.NewMemoryFSM()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)//?
 	defer stop()
