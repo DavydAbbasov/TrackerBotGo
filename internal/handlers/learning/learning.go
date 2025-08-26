@@ -155,7 +155,7 @@ func (l *LearningModule) ProcessCollectionCreation(ctx *context.MsgContext) {
 	confirmMsg.ParseMode = "Markdown"
 	confirmMsg.ReplyMarkup = GetLearningMenuKeyboard()
 	if _, err := l.bot.Send(confirmMsg); err != nil {
-		log.Error().Err(err).Msg("err showing learning")
+		log.Error().Err(err).Msg("err showing learning") 
 	}
 
 	l.learningStorage.AddCollection(ctx.UserID, storage.Collection{

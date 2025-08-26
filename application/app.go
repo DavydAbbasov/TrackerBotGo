@@ -38,6 +38,7 @@ func New(cfg *config.Config) *App {
 	fsmManager := fsm.NewFSM()                                                    //
 	dispatcher := handlers.New(bot, fsmManager, activityStorage, learningStorage) //
 
+	//Сохраняет dispatcher в список flushables:
 	flushables := []interfaces.Flushable{ //?
 		dispatcher,
 		// to do
@@ -51,7 +52,7 @@ func New(cfg *config.Config) *App {
 		activityStorage: activityStorage,
 	}
 }
-func (a *App) Run(ctx context.Context) error { //?
+func (a *App) Run(ctx context.Context) error { //?обработка контекста грейсфул шатдавн после того как в меййн ему передали родительский контекст
 	go a.dispatcher.Run() //
 
 	<-ctx.Done() //
