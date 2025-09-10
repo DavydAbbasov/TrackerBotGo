@@ -1,1 +1,0 @@
-SELECT table_name.User_name FROM table_name 

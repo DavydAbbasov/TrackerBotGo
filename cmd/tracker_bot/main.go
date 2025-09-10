@@ -12,19 +12,16 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
-		log.Fatal().Err(err).Msg("application exited with error")
-	}
-	log.Info().Msg("shutdown complete")
-}
-
-func run() error { //?
 	cfg := config.MustLoadConfig(".env")
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM) //создает родительскиййй контекст который ловит сигналы от опирационной системы
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	app := application.New(cfg)
 
-	return app.Run(ctx)
+	if err := app.Run(ctx); err != nil {
+		log.Fatal().Err(err).Msg("application exited with error")
+	}
+	log.Info().Msg("shutdown complete")
+
 }

@@ -9,9 +9,14 @@ import (
 
 type Config struct {
 	TelegramToken    string `env:"TELEGRAM_TOKEN"`
-	TelegramBotDebug bool   `env:"telegram_bot_debug"`
-	DBHost           string `env:"db_host"`
-	DBPORT           string `env:"db_port"`
+	TelegramBotDebug bool   `env:"TELEGRAM_BOT_DEBUG"`
+
+	HostDB     string `env:"HOST_DB"`
+	PortDB     int64  `env:"PORT_DB"`
+	UserDB     string `env:"USER_DB"`
+	PasswordDB string `env:"PASSWORD_DB"`
+	NameDB     string `env:"NAME_DB"`
+	SSLMode    string `env:"SSL_MODE"`
 }
 
 func MustLoadConfig(configPath string) *Config {

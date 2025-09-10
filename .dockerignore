@@ -1,0 +1,37 @@
+# Git и локальные файлы
+.git
+.gitignore
+*.log
+.tmp/
+tmp/
+build/
+bin/
+dist/
+
+# Секреты/локальная конфигурация
+.env
+*.env
+credentials_*.json
+*.pem
+*.key
+
+# IDE/OS
+.vscode/
+.idea/
+.DS_Store
+
+# Кэш/зависимости
+node_modules/
+vendor/           # если не вендорим; при необходимости удалите эту строку
+coverage/
+*.test
+
+# Документация/медиа
+**/*.md
+*.png
+*.jpg
+*.svg
+
+# Ненужные для сборки пути
+scripts/
+docs/

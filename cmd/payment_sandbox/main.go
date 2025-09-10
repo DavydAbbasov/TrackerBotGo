@@ -23,16 +23,7 @@ type Config struct {
 	ShutdownTimeout time.Duration `env:"PAY_SHUTDOWN_TIMEOUT" envDefault:"5s"`
 }
 
-// func main() {
-	// 	main()
-	//  ├─ загрузка конфига
-	//  ├─ инициализация логера
-	//  ├─ создание ctx для сигналов ОС
-	//  ├─ запуск HTTP-сервера (горутинa)
-	//  ├─ ожидание ctx.Done()
-	//  ├─ создание shutdownCtx (с таймаутом)
-	//  ├─ корректная остановка сервера
-	//  └─ выход
+func main() {
 
 	logger := zerolog.New(zerolog.ConsoleWriter{
 		Out:        os.Stdout,

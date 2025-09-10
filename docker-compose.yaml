@@ -1,54 +1,16 @@
-version: '3.8'
-
 services:
   db:
-    restart: always
-    image: postgres:latest
-    ports:
-     - "5431:5432"
-    volumes:
-     - ./.database/postgres/data:/var/lib/postgresql/data
-     - ./migrations:/docker-entrypoint-initdb.d/
+    image: postgres:16
     environment:
-     - POSTGRES_DB=rotifer
-     - POSTGRES_USER=rotifer
-     - POSTGRES_PASSWORD=rotifer
-
-  redis:
-    image: redis:latest
-    container_name: redis_container
-    environment:
-      - REDIS_PASSWORD=rotifer
-      - REDIS_USER=rotifer
-      - REDIS_USER_PASSWORD=rotifer
-    ports:
-      - "6380:6379"
-    volumes:
-      - ./redisdata:/data
-    deploy:
-      resources:
-        limits:
-          cpus: '0.50'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-    command: >
-      sh -c '
-        mkdir -p /usr/local/etc/redis &&
-        echo "bind 0.0.0.0" > /usr/local/etc/redis/redis.conf &&
-        echo "requirepass $REDIS_PASSWORD" >> /usr/local/etc/redis/redis.conf &&
-        echo "appendonly yes" >> /usr/local/etc/redis/redis.conf &&
-        echo "appendfsync everysec" >> /usr/local/etc/redis/redis.conf &&
-        echo "user default on nopass ~* +@all" > /usr/local/etc/redis/users.acl &&
-        echo "user $REDIS_USER on >$REDIS_USER_PASSWORD ~* +@all" >> /usr/local/etc/redis/users.acl &&
-        redis-server /usr/local/etc/redis/redis.conf --aclfile /usr/local/etc/redis/users.acl
-      '
+      POSTGRES_USER: tracker
+      POSTGRES_PASSWORD: tracker
+      POSTGRES_DB: tracker
+    ports: ["5433:5432"]   # снаружи 5433, внутри 5432 (меньше шансов конфликта)
+    volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "$REDIS_PASSWORD", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    restart: unless-stopped
-    tty: true
-    stdin_open: true
+      test: ["CMD-SHELL", "pg_isready -U tracker -d tracker"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  pgdata:
