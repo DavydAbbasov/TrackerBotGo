@@ -1,4 +1,7 @@
 package postgresql
+//Storage (твой файл) — это инициализация соединения с БД
+// и управление пулом *sql.DB (Ping, настройки, Close).
+
 
 //Адаптер — это слой, который умеет «разговаривать»
 // с внешними системами (в нашем случае — с базой данных).
@@ -135,7 +138,7 @@ func (s *Storage) GetUserByID(ctx context.Context, id int64) (*model.User, error
 			&user.Language,
 			&user.TimeZone,
 			&user.CreatedAt,
-		) //добавляешь каждого user в слайс,
+		) 
 		//В твоём случае ты ищешь по ID (один пользователь) → цикл избыточен.
 		// Лучше QueryRowContext
 		if err != nil {

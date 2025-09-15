@@ -8,6 +8,7 @@ import (
 	"github.com/DavydAbbasov/trecker_bot/interfaces"
 	"github.com/DavydAbbasov/trecker_bot/internal/dispatcher"
 	handlers "github.com/DavydAbbasov/trecker_bot/internal/dispatcher"
+	"github.com/DavydAbbasov/trecker_bot/internal/user"
 	"github.com/DavydAbbasov/trecker_bot/storage"
 
 	"github.com/DavydAbbasov/trecker_bot/config"
@@ -19,9 +20,14 @@ type App struct {
 	bot             interfaces.BotAPI
 	cfg             *config.Config
 	dispatcher      *dispatcher.Dispatcher
-	flushables      []interfaces.Flushable //?
+	flushables      []interfaces.Flushable
 	activityStorage storage.ActivityStorage
 	learningStorage storage.LearningStorage
+	repo            interfaces.Repo
+	validator       user.UserValidator
+
+	//    storage *postgresql.Storage
+	// userSvc *user.Service
 }
 
 func New(cfg *config.Config) *App {
@@ -35,8 +41,8 @@ func New(cfg *config.Config) *App {
 
 	activityStorage := storage.NewMemoryActivityStorage()
 	learningStorage := storage.NewMemoryLearningStorage()
-	fsmManager := fsm.NewFSM()                                                    //
-	dispatcher := handlers.New(bot, fsmManager, activityStorage, learningStorage) //
+	fsmManager := fsm.NewFSM()                                                                     //
+	dispatcher := handlers.New(bot, fsmManager, activityStorage, learningStorage, repo, validator) //
 
 	//Сохраняет dispatcher в список flushables:
 	flushables := []interfaces.Flushable{ //?
@@ -50,17 +56,19 @@ func New(cfg *config.Config) *App {
 		dispatcher:      dispatcher,
 		flushables:      flushables,
 		activityStorage: activityStorage,
+		learningStorage: learningStorage,
+		repo:            repo,
+		validator:       validator,
 	}
 }
-func (a *App) Run(ctx context.Context) error { //?обработка контекста грейсфул шатдавн после того как в меййн ему передали родительский контекст
-	go a.dispatcher.Run() //
+func (a *App) Run(ctx context.Context) error {
 
-	<-ctx.Done() //
+	<-ctx.Done()
 
 	log.Info().Msg("shutdown initiated")
 	a.bot.StopReceivingUpdates()
 
-	for _, f := range a.flushables { //?
+	for _, f := range a.flushables {
 		if err := f.Flush(); err != nil {
 			log.Error().Err(err).Msg("flush failed")
 		}

@@ -22,7 +22,7 @@ func (e *EntryModule) HandleCommand(message *tgbotapi.Message) {
 	switch message.Command() { //?
 	case model.CommandStart:
 		e.handleStart(message)
-		e.HandleLanguaheStart(message)
+		e.HandleLanguageStart(message)
 	default:
 		e.handleUnknown(message)
 	}

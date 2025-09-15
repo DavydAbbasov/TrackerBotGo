@@ -4,19 +4,24 @@ import (
 	"github.com/DavydAbbasov/trecker_bot/interfaces"
 	"github.com/DavydAbbasov/trecker_bot/internal/dispatcher/context"
 	"github.com/DavydAbbasov/trecker_bot/internal/handlers/entry"
+	"github.com/DavydAbbasov/trecker_bot/internal/user"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/rs/zerolog/log"
 )
 
 type ProfileModule struct {
-	bot interfaces.BotAPI
-	entry *entry.EntryModule
+	bot       interfaces.BotAPI
+	entry     *entry.EntryModule
+	repo      interfaces.Repo
+	validator user.UserValidator
 }
 
-func New(bot interfaces.BotAPI,entry *entry.EntryModule) *ProfileModule {
+func New(bot interfaces.BotAPI, entry *entry.EntryModule, repo interfaces.Repo, validator user.UserValidator) *ProfileModule {
 	return &ProfileModule{
-		bot: bot,
-		entry:entry,
+		bot:       bot,
+		entry:     entry,
+		repo:      repo,
+		validator: validator,
 	}
 }
 func (d *ProfileModule) ShowProfileMock(ctx *context.MsgContext) {

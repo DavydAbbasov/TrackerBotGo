@@ -6,7 +6,7 @@ import (
 	log "github.com/rs/zerolog/log"
 )
 
-func (e *EntryModule) HandleLanguaheStart(msg *tgbotapi.Message) {
+func (e *EntryModule) HandleLanguageStart(msg *tgbotapi.Message) {
 	chatID := msg.Chat.ID
 
 	row1 := tgbotapi.NewInlineKeyboardRow(

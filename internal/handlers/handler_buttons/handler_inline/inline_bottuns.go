@@ -32,7 +32,7 @@ func (i *InlinneModule) HandlePrefixRoute(ctx *context.CallbackContext) bool {
 	// route table
 	prefixHandlers := map[string]func(*context.CallbackContext){ //?
 		"activity_report_": i.handleActivityReport,
-		"lang_":            i.handleLanguageChange,
+		"lang_":            i.handleLanguageSwitch,
 		"edit_language_":   i.handleShowLanguageSelection,
 	}
 	// dynamic route
@@ -81,8 +81,8 @@ func (i *InlinneModule) handleShowLanguageSelection(ctx *context.CallbackContext
 	i.profile.ShowLanguageSelection(ctx)
 }
 
-func (i *InlinneModule) handleLanguageChange(ctx *context.CallbackContext) {
-	i.profile.LanguageChange(ctx)
+func (i *InlinneModule) handleLanguageSwitch(ctx *context.CallbackContext) {
+	i.profile.LanguageSwitch(ctx)
 }
 
 // exactHandlers
