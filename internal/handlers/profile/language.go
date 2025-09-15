@@ -38,7 +38,7 @@ func (d *ProfileModule) LanguageSwitch(ctx *context.CallbackContext) {
 		TgUserID: ctx.UserID, // или ctx.FromID — что у тебя в контексте
 		Language: &lang,
 	}
-	if err := d.repo.UpsertByTG(ctx.Ctx, u); err != nil {
+	if err := d.repo.CreateUserByTelegramID(ctx.Ctx, u); err != nil {
 		log.Error().Err(err).Msg("update language failed")
 		_, _ = d.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "Save error, try later"))
 		return

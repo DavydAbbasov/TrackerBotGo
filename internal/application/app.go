@@ -8,7 +8,7 @@ import (
 	"github.com/DavydAbbasov/trecker_bot/interfaces"
 	"github.com/DavydAbbasov/trecker_bot/internal/dispatcher"
 	handlers "github.com/DavydAbbasov/trecker_bot/internal/dispatcher"
-	"github.com/DavydAbbasov/trecker_bot/internal/user"
+	user "github.com/DavydAbbasov/trecker_bot/internal/user"
 	"github.com/DavydAbbasov/trecker_bot/storage"
 
 	"github.com/DavydAbbasov/trecker_bot/config"
@@ -23,7 +23,7 @@ type App struct {
 	flushables      []interfaces.Flushable
 	activityStorage storage.ActivityStorage
 	learningStorage storage.LearningStorage
-	repo            interfaces.Repo
+	repo            interfaces.UserRepository
 	validator       user.UserValidator
 
 	//    storage *postgresql.Storage
@@ -41,8 +41,15 @@ func New(cfg *config.Config) *App {
 
 	activityStorage := storage.NewMemoryActivityStorage()
 	learningStorage := storage.NewMemoryLearningStorage()
-	fsmManager := fsm.NewFSM()                                                                     //
-	dispatcher := handlers.New(bot, fsmManager, activityStorage, learningStorage, repo, validator) //
+	fsmManager := fsm.NewFSM()
+
+	postgresqlDriver, err := user.New(cfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to get postgresql db driver")
+	}
+	validator := user.NewUserValidator()
+
+	dispatcher := handlers.New(bot, fsmManager, activityStorage, learningStorage, postgresqlDriver, validator) //
 
 	//Сохраняет dispatcher в список flushables:
 	flushables := []interfaces.Flushable{ //?
@@ -57,7 +64,7 @@ func New(cfg *config.Config) *App {
 		flushables:      flushables,
 		activityStorage: activityStorage,
 		learningStorage: learningStorage,
-		repo:            repo,
+		repo:            postgresqlDriver,
 		validator:       validator,
 	}
 }
@@ -78,5 +85,6 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	log.Info().Msg("Shutdown complete")
+
 	return nil
 }

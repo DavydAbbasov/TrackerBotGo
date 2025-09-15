@@ -5,8 +5,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/DavydAbbasov/trecker_bot/application"
 	"github.com/DavydAbbasov/trecker_bot/config"
+	"github.com/DavydAbbasov/trecker_bot/internal/application"
 
 	log "github.com/rs/zerolog/log"
 )
@@ -23,5 +23,4 @@ func main() {
 		log.Fatal().Err(err).Msg("application exited with error")
 	}
 	log.Info().Msg("shutdown complete")
-
 }

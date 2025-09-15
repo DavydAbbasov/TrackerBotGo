@@ -1,10 +1,14 @@
 package profile
 
 import (
+	context2 "context"
+	"fmt"
+
 	"github.com/DavydAbbasov/trecker_bot/interfaces"
+
 	"github.com/DavydAbbasov/trecker_bot/internal/dispatcher/context"
 	"github.com/DavydAbbasov/trecker_bot/internal/handlers/entry"
-	"github.com/DavydAbbasov/trecker_bot/internal/user"
+	user "github.com/DavydAbbasov/trecker_bot/internal/user"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/rs/zerolog/log"
 )
@@ -12,11 +16,11 @@ import (
 type ProfileModule struct {
 	bot       interfaces.BotAPI
 	entry     *entry.EntryModule
-	repo      interfaces.Repo
+	repo      interfaces.UserRepository
 	validator user.UserValidator
 }
 
-func New(bot interfaces.BotAPI, entry *entry.EntryModule, repo interfaces.Repo, validator user.UserValidator) *ProfileModule {
+func New(bot interfaces.BotAPI, entry *entry.EntryModule, repo interfaces.UserRepository, validator user.UserValidator) *ProfileModule {
 	return &ProfileModule{
 		bot:       bot,
 		entry:     entry,
@@ -25,28 +29,23 @@ func New(bot interfaces.BotAPI, entry *entry.EntryModule, repo interfaces.Repo, 
 	}
 }
 func (d *ProfileModule) ShowProfileMock(ctx *context.MsgContext) {
-	text := `
-👤 *My account*
+	var err error
 
-— 👤 Имя: *Давид*
-— 🧠 Активность: *Трекается*
-— 🔥 Streak: *5 дней*
-— 🌐 Язык: *Русский*
-— 📍 Часовой пояс: *Europe/Berlin*
-— 🗃 Подписка : *12 month*
-— 📧 Контакт: @alaamov
+	_, err = d.repo.GetUserByTelegramID(context2.Background(), ctx.UserID) // error get user
+	if err != nil {
+		// log
+	}
 
-Настроить профиль можно ниже:
-`
-	msg := tgbotapi.NewMessage(ctx.ChatID, text)
+	msg := tgbotapi.NewMessage(ctx.ChatID, "")
 
-	msg.ParseMode = "Markdown"
-	msg.ReplyMarkup = BuildProfileKeyboard()
-	_, err := d.bot.Send(msg)
+	_, err = d.bot.Send(msg) // error send message
 	if err != nil {
 		log.Error().Err(err).Msg("err showing profil")
-
 	}
+
+	fmt.Println(err)
+	fmt.Println(err)
+
 }
 
 func (d *ProfileModule) ShowLanguageSelection(ctx *context.CallbackContext) {

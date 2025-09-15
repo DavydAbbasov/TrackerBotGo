@@ -10,7 +10,7 @@ import (
 	"github.com/DavydAbbasov/trecker_bot/internal/handlers/profile"
 	"github.com/DavydAbbasov/trecker_bot/internal/handlers/subscription"
 	"github.com/DavydAbbasov/trecker_bot/internal/handlers/track"
-	"github.com/DavydAbbasov/trecker_bot/internal/user"
+	user "github.com/DavydAbbasov/trecker_bot/internal/user"
 	"github.com/DavydAbbasov/trecker_bot/storage"
 
 	"github.com/DavydAbbasov/trecker_bot/interfaces"
@@ -30,11 +30,11 @@ type Dispatcher struct {
 	profile         *profile.ProfileModule
 	learning        *learning.LearningModule
 	learningStorage storage.LearningStorage
-	Repo            interfaces.Repo
+	Repo            interfaces.UserRepository
 	Validator       user.UserValidator
 }
 
-func New(bot interfaces.BotAPI, fsm interfaces.FSMManager, activityStorage storage.ActivityStorage, learningStorage storage.LearningStorage, repo interfaces.Repo, validator user.UserValidator) *Dispatcher {
+func New(bot interfaces.BotAPI, fsm interfaces.FSMManager, activityStorage storage.ActivityStorage, learningStorage storage.LearningStorage, repo interfaces.UserRepository, validator user.UserValidator) *Dispatcher {
 	if bot == nil {
 		log.Fatal().Msg("Dispatcher: nil bot interfaces.BotAPI")
 	}
@@ -48,7 +48,7 @@ func New(bot interfaces.BotAPI, fsm interfaces.FSMManager, activityStorage stora
 		Validator:       validator,
 	}
 
-	d.entry = entry.New(bot, fsm)
+	d.entry = entry.New(bot, fsm, repo)
 	d.subscription = subscription.New(bot)
 	d.profile = profile.New(bot, d.entry, d.Repo, d.Validator)
 	d.track = track.New(bot, fsm, d.entry, activityStorage)
