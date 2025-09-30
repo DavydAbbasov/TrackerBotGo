@@ -7,16 +7,21 @@ import (
 )
 
 type MsgContext struct {
-	Message *tgbotapi.Message
-	ChatID  int64
-	UserID  int64
-	Text    string
+	Message  *tgbotapi.Message
+	ChatID   int64
+	UserID   int64
+	Text     string
+	DBUserID int64 // ВНУТРЕННИЙ users.id
+	UserName string
 }
 type CallbackContext struct {
-	Ctx          context.Context
+	Message      *tgbotapi.Message
+	Ctx          *context.Context
 	Callback     *tgbotapi.CallbackQuery
 	ChatID       int64
 	UserID       int64
 	Data         string
 	ActivityName string
+	DBUserID     int64 // ВНУТРЕННИЙ users.id
+	UserName     string
 }

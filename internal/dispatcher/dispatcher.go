@@ -2,7 +2,12 @@
 package dispatcher
 
 import (
+	stdctx "context"
+	"strings"
+	"time"
+
 	"github.com/DavydAbbasov/trecker_bot/internal/dispatcher/context"
+	"github.com/DavydAbbasov/trecker_bot/internal/domain"
 	"github.com/DavydAbbasov/trecker_bot/internal/handlers/entry"
 	inlinecommands "github.com/DavydAbbasov/trecker_bot/internal/handlers/handler_buttons/handler_inline"
 	replycommands "github.com/DavydAbbasov/trecker_bot/internal/handlers/handler_buttons/handler_reply"
@@ -10,7 +15,7 @@ import (
 	"github.com/DavydAbbasov/trecker_bot/internal/handlers/profile"
 	"github.com/DavydAbbasov/trecker_bot/internal/handlers/subscription"
 	"github.com/DavydAbbasov/trecker_bot/internal/handlers/track"
-	user "github.com/DavydAbbasov/trecker_bot/internal/user"
+	helper "github.com/DavydAbbasov/trecker_bot/internal/lib/postgresql"
 	"github.com/DavydAbbasov/trecker_bot/storage"
 
 	"github.com/DavydAbbasov/trecker_bot/interfaces"
@@ -30,11 +35,15 @@ type Dispatcher struct {
 	profile         *profile.ProfileModule
 	learning        *learning.LearningModule
 	learningStorage storage.LearningStorage
-	Repo            interfaces.UserRepository
-	Validator       user.UserValidator
+	repo            interfaces.UserRepository
+	validator       *helper.Validator
+	activities      domain.ActivityRepo
 }
 
-func New(bot interfaces.BotAPI, fsm interfaces.FSMManager, activityStorage storage.ActivityStorage, learningStorage storage.LearningStorage, repo interfaces.UserRepository, validator user.UserValidator) *Dispatcher {
+func New(bot interfaces.BotAPI, fsm interfaces.FSMManager,
+	activityStorage storage.ActivityStorage, learningStorage storage.LearningStorage,
+	repo interfaces.UserRepository, validator *helper.Validator,
+	activities domain.ActivityRepo) *Dispatcher {
 	if bot == nil {
 		log.Fatal().Msg("Dispatcher: nil bot interfaces.BotAPI")
 	}
@@ -44,14 +53,15 @@ func New(bot interfaces.BotAPI, fsm interfaces.FSMManager, activityStorage stora
 		fsm:             fsm,
 		activityStorage: activityStorage,
 		learningStorage: learningStorage,
-		Repo:            repo,
-		Validator:       validator,
+		repo:            repo,
+		validator:       validator,
+		activities:      activities,
 	}
 
-	d.entry = entry.New(bot, fsm, repo)
+	d.entry = entry.New(bot, fsm, repo, validator)
 	d.subscription = subscription.New(bot)
-	d.profile = profile.New(bot, d.entry, d.Repo, d.Validator)
-	d.track = track.New(bot, fsm, d.entry, activityStorage)
+	d.profile = profile.New(bot, d.entry, repo, validator)
+	d.track = track.New(bot, fsm, d.entry, activityStorage, activities)
 	d.learning = learning.New(bot, fsm, d.entry, learningStorage)
 	d.inlinecommands = inlinecommands.New(bot, d.track, d.profile, d.learning)
 	d.replycommands = replycommands.New(bot, d.track, d.subscription, d.entry, d.profile, d.learning)
@@ -67,24 +77,15 @@ func (d *Dispatcher) Run() {
 	updates := d.bot.GetUpdatesChan(u)
 
 	for update := range updates {
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					log.Error().Any("panic", r).Msg("Recovered from panic in update loop")
-				}
-			}()
-
-			switch {
-			case update.CallbackQuery != nil:
-				d.RunCallback(update.CallbackQuery)
-			case update.Message != nil && update.Message.IsCommand():
-				d.entry.HandleCommand(update.Message)
-			case update.Message != nil:
-				d.handleMessage(update.Message)
-			}
-		}()
+		switch {
+		case update.CallbackQuery != nil:
+			d.RunCallback(update.CallbackQuery)
+		case update.Message != nil && update.Message.IsCommand():
+			d.entry.HandleCommand(update.Message)
+		case update.Message != nil:
+			d.handleMessage(update.Message)
+		}
 	}
-
 }
 
 func (d *Dispatcher) handleMessage(msg *tgbotapi.Message) {
@@ -93,19 +94,38 @@ func (d *Dispatcher) handleMessage(msg *tgbotapi.Message) {
 	if d.handleUserState(ctx) {
 		return
 	}
-	if d.replycommands.HandleReplyButtons(ctx) { //
+	if d.replycommands.HandleReplyButtons(ctx) {
 		return
 	}
 
 }
-func (d *Dispatcher) newMessageContext(msg *tgbotapi.Message) *context.MsgContext {
-	return &context.MsgContext{
-		Message: msg,
-		ChatID:  msg.Chat.ID,
-		UserID:  msg.From.ID,
-		Text:    msg.Text,
-	}
 
+// Событие – обычное сообщение: пользователь написал текст или нажал reply-кнопку
+func (d *Dispatcher) newMessageContext(msg *tgbotapi.Message) *context.MsgContext {
+
+	ctxMsg := &context.MsgContext{
+		Message:  msg,
+		ChatID:   msg.Chat.ID,
+		UserID:   int64(msg.From.ID), // телеграм-ID (почему берем под int64)
+		UserName: strings.TrimSpace(msg.From.UserName),
+		Text:     msg.Text,
+	}
+	reqCxt, cancel := stdctx.WithTimeout(stdctx.Background(), 3*time.Second)
+	defer cancel()
+
+	id, err := d.repo.EnsureIDByTelegram(reqCxt, ctxMsg.UserID, ctxMsg.UserName)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("tg_id", ctxMsg.UserID).
+			Str("data", msg.ForwardSenderName).
+			Msg("ensure user failed (MsgContext)")
+
+		d.bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Не удалось инициализировать пользователя. Попробуйте ещё раз."))
+		return ctxMsg
+	}
+	ctxMsg.DBUserID = id //users.id
+	return ctxMsg
 }
 func (d *Dispatcher) handleUserState(ctx *context.MsgContext) bool {
 	state := d.fsm.Get(ctx.UserID)

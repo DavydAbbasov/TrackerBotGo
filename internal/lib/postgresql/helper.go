@@ -1,4 +1,4 @@
-package postgresql
+package helper
 
 import (
 	"strconv"
@@ -11,4 +11,15 @@ func prepareIN(s []int) string {
 		strs[k] = strconv.Itoa(i)
 	}
 	return strings.Join(strs, ",")
+}
+func ToNullable(p *string) any {
+	if p == nil || *p == "" {
+		return nil
+	}
+	return *p
+}
+func PtrIfNotEmpty(s string) *string {
+    s = strings.TrimSpace(s)
+    if s == "" { return nil }
+    return &s
 }

@@ -6,6 +6,12 @@ import (
 )
 
 type Activity struct {
+	ID     int64
+	UserID int64
+	// Name         string
+	// Emoji        string
+	// IsArchived   bool
+	// CreatedAt    time.Time
 	NameActivity string
 	TimeEntry    []TimeEntry
 }
@@ -14,7 +20,7 @@ type TimeEntry struct {
 	Timestamp time.Time
 	Start     time.Time
 	End       time.Time
-	Duration  time.Duration 
+	Duration  time.Duration
 }
 
 type ActivityStorage interface {

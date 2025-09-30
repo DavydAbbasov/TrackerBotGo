@@ -1,12 +1,16 @@
 package track
 
 import (
+	ctx2 "context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DavydAbbasov/trecker_bot/interfaces"
 	"github.com/DavydAbbasov/trecker_bot/internal/dispatcher/context"
+	"github.com/DavydAbbasov/trecker_bot/internal/domain"
 	"github.com/DavydAbbasov/trecker_bot/internal/handlers/entry"
 	"github.com/DavydAbbasov/trecker_bot/storage"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -18,14 +22,16 @@ type TrackModule struct {
 	fsm           interfaces.FSMManager
 	entry         *entry.EntryModule
 	activityStore storage.ActivityStorage
+	activities    domain.ActivityRepo
 }
 
-func New(bot interfaces.BotAPI, fsm interfaces.FSMManager, entry *entry.EntryModule, activityStore storage.ActivityStorage) *TrackModule {
+func New(bot interfaces.BotAPI, fsm interfaces.FSMManager, entry *entry.EntryModule, activityStore storage.ActivityStorage, activities domain.ActivityRepo) *TrackModule {
 	return &TrackModule{
 		bot:           bot,
 		fsm:           fsm,
 		entry:         entry,
 		activityStore: activityStore,
+		activities:    activities,
 	}
 }
 
@@ -102,7 +108,7 @@ func (t *TrackModule) ShowActivityReport(ctx *context.CallbackContext) {
 }
 func (t *TrackModule) ShowCalendar(ctx *context.MsgContext) {
 	text := `
-📊 *Недельный отчёт по активности:* 
+📊 *Недельный отчёт по активности:*
 📅 *Статистика за желаемый период:*
 
 📈 Ср. кл. ч. в день: *2ч 32мин*
@@ -173,15 +179,13 @@ func (t *TrackModule) AddActivity(ctx *context.CallbackContext) {
 	text := `
 📌 *Создание новой активности*
 
-Активности нужны для трекинга того, чем вы занимаетесь. Примеры:  
-- 🧠 Go  
-- 📚 English  
+Активности нужны для трекинга того, чем вы занимаетесь. Примеры:
+- 🧠 Go
+- 📚 English
 - 🏋️ Workout
 
-Введите *название вашей активности* 
+Введите *название вашей активности*
 `
-	// t.fsm.Reset(ctx.UserID)
-
 	t.fsm.Set(ctx.UserID, "waiting_for_activity_name")
 
 	replyMenu := tgbotapi.NewReplyKeyboard(
@@ -215,12 +219,25 @@ func GetActivityMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 
 	return replyMenu
 }
+func GetActivityMenuKeyboardAddAndArchive() tgbotapi.ReplyKeyboardMarkup {
+	replyMenu := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("📳 Activate"),
+			tgbotapi.NewKeyboardButton("🛒 Archive"),
+		),
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("🐘 Delete"),
+			tgbotapi.NewKeyboardButton("↩ Назад Home"),
+		),
+	)
+	replyMenu.ResizeKeyboard = true
+
+	return replyMenu
+}
 
 func (t *TrackModule) ProcessAddActivity(ctx *context.MsgContext) {
 	log.Debug().Str("user", strconv.FormatInt(ctx.UserID, 10)).Str("text", ctx.Text).Msg("ProcessAddActivity вызван")
 
-	// userID := msg.From.ID
-	// chatID := msg.Chat.ID
 	input := strings.TrimSpace(ctx.Text)
 
 	if input == "ℹ️ Помощь" {
@@ -230,46 +247,55 @@ func (t *TrackModule) ProcessAddActivity(ctx *context.MsgContext) {
 
 	if input == "" {
 		t.fsm.Reset(ctx.UserID) //сбрасываем состояние
-		// delete(TrackingUserStates, ctx.UserID) //Удаляем пользователя из карты состояний
 
 		t.entry.ShowMainMenu(ctx)
 		return
 	}
 
-	// Сохраняем данные во FSM
-	t.activityStore.Add(ctx.UserID, storage.Activity{
-		NameActivity: input,
-		TimeEntry:    []storage.TimeEntry{},
-	})
+	log.Debug().
+		Int64("tg_id", ctx.UserID).
+		Int64("db_user_id", ctx.DBUserID).
+		Str("name", input).
+		Msg("Create activity")
 
-	// t.fsm.Set(ctx.UserID, "create_activity")
-	// t.fsm.SetData(ctx.UserID, "activity_name", input)
-	t.fsm.Reset(ctx.UserID)
-	log.Debug().Str("user", fmt.Sprint(ctx.UserID)).Msg("FSM очищен после создания активности")
-	// state := TrackingUserStates[ctx.UserID]
-	// state.CurrentName = input
-	// state.State = "activity_created"
+	ctx3 := ctx2.Background()
+	act, err := t.activities.Create(ctx3, ctx.DBUserID, input, "")
 
-	// Создаём активность
-	text := fmt.Sprintf("Ваша активность:*%s*,создана", input)
-	confirmMsg := tgbotapi.NewMessage(ctx.ChatID, text)
-	confirmMsg.ParseMode = "Markdown"
+	switch {
+	case errors.Is(err, domain.ErrActivityExists):
+		t.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "😒"))
+		t.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "Такая активность уже есть."))
+		return
 
-	repluMenu := GetActivityMenuKeyboard()
-	confirmMsg.ReplyMarkup = repluMenu
-	if _, err := t.bot.Send(confirmMsg); err != nil {
-		log.Error().Err(err).Msg("err showing add_activity")
+	case err != nil:
+		t.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "😥"))
+		t.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "*Ошибка сохранения*: "+err.Error()))
+		return
+
+	default:
+		t.fsm.Reset(ctx.UserID)
+		t.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "👍"))
+
+		time.Sleep(700 * time.Microsecond)
+
+		text := fmt.Sprintf("*Активность*: *%s*, *создана😊*", act.Name)
+		confirmMsg := tgbotapi.NewMessage(ctx.ChatID, text)
+		confirmMsg.ParseMode = "Markdown"
+
+		repluMenu := GetActivityMenuKeyboardAddAndArchive()
+		confirmMsg.ReplyMarkup = repluMenu
+		if _, err := t.bot.Send(confirmMsg); err != nil {
+			log.Error().Err(err).Msg("err showing add_activity")
+		}
+
+		time.Sleep(500 * time.Microsecond)
+
+		followupMsg := tgbotapi.NewMessage(ctx.ChatID, "👇")
+		t.bot.Send(followupMsg)
 	}
 
-	// ActivityCollections[ctx.UserID] = append(ActivityCollections[ctx.UserID], Activity{
-	// 	NameActivity: input,
-	// 	TimeEntry:    []TimeEntry{},
-	// })
-
-	followupMsg := tgbotapi.NewMessage(ctx.ChatID, "➕ Теперь вы можете добавить таймер для трекинга.")
-	t.bot.Send(followupMsg)
-
 }
+
 func (t *TrackModule) SelectionActivityPromt(ctx *context.CallbackContext) {
 	text := `
 📂 *Выбрать активность*
@@ -279,41 +305,173 @@ func (t *TrackModule) SelectionActivityPromt(ctx *context.CallbackContext) {
 
 *Выберите активность для трека:*
 `
-	activities := t.activityStore.List(ctx.UserID)
+	ctx3, stop := ctx2.WithTimeout(ctx2.Background(), 5*time.Second)
+	defer stop()
 
-	if len(activities) == 0 {
-		msg := tgbotapi.NewMessage(ctx.ChatID, "нет активностей")
-		if _, err := t.bot.Send(msg); err != nil {
-			log.Error().Err(err).Msg("ошибка при отправке сообщения")
-			return
-		}
+	// Сразу собираем текст и inline-клавиатуру одной функцией
+	text, markup, _, total, err := t.buildActivityUI(ctx3, ctx.DBUserID, true)
+	if err != nil {
+		msg := tgbotapi.NewMessage(ctx.ChatID, "⚠️ Не удалось загрузить активности. Попробуйте позже.")
+		_, _ = t.bot.Send(msg)
+		return
+	}
+	if total == 0 {
+		// Нет активностей — покажем подсказку + reply-клавиатуру и выйдем
+		msg := tgbotapi.NewMessage(ctx.ChatID, "Пока нет активностей. Нажмите «Добавить» ниже.")
+		msg.ReplyMarkup = GetActivityMenuKeyboardAddAndArchive()
+		_, _ = t.bot.Send(msg)
+		return
 	}
 
-	var rows [][]tgbotapi.InlineKeyboardButton
+	// 1) Отправляем reply-клавиатуру (меню)
+	msgReply := tgbotapi.NewMessage(ctx.ChatID, "🗂")
+	msgReply.ReplyMarkup = GetActivityMenuKeyboardAddAndArchive()
+	if _, err := t.bot.Send(msgReply); err != nil {
+		log.Error().Err(err).Msg("send reply keyboard failed")
+	}
 
-	for _, activity := range activities {
-		if activity.NameActivity == "" {
-			log.Warn().Msg("Обнаружена подборка без названия, пропускаем")
+	// 2) Отправляем сообщение с inline-кнопками (галочки уже учтены в buildActivityUI)
+	msg := tgbotapi.NewMessage(ctx.ChatID, text)
+	msg.ParseMode = "HTML" // единый режим
+	msg.ReplyMarkup = markup
+	if _, err := t.bot.Send(msg); err != nil {
+		log.Error().Err(err).Msg("send inline list failed")
+	}
+}
+
+func (t *TrackModule) ActivityToggle(ctx *context.CallbackContext) {
+	ctx3, stop := ctx2.WithTimeout(ctx2.Background(), 5*time.Second)
+	defer stop()
+
+	payload := strings.TrimPrefix(ctx.Data, "act_toggle_:")
+	activityID, err := strconv.ParseInt(payload, 10, 64)
+	if err != nil {
+		t.bot.Request(tgbotapi.NewCallback(ctx.Callback.ID, "НЕКОРЕКТНЫЕ ДАННЫЕ"))
+		return
+	}
+
+	if err := t.activities.ToggleSelectedActive(ctx3, ctx.DBUserID, activityID); err != nil {
+		log.Error().Err(err).Msg("taggle selected failed")
+		t.bot.Request(tgbotapi.NewCallback(ctx.Callback.ID, "не удалось изменить отобразить выбор"))
+		return
+	}
+
+	// text, markup, _, _, err := t.buildActivityUI(ctx3, ctx.DBUserID, true)
+	// if err != nil {
+	// 	// редактируем текущее сообщение сообщением об ошибке и убираем клавиатуру
+	// 	empty := tgbotapi.NewInlineKeyboardMarkup()
+	// 	edit := tgbotapi.NewEditMessageTextAndMarkup(ctx.ChatID, ctx.Message.MessageID,
+	// 		"⚠️ <b>Не удалось обновить список.</b>", empty)
+	// 	edit.ParseMode = "HTML"
+	// 	t.bot.Send(edit)
+	// 	return
+	// }
+	// edit := tgbotapi.NewEditMessageTextAndMarkup(ctx.ChatID, ctx.Message.MessageID, text, markup)
+	// edit.ParseMode = "HTML"
+	// t.bot.Send(edit)
+
+	acts, err := t.activities.ListActive(ctx3, ctx.DBUserID)
+	if err != nil {
+		edit := tgbotapi.NewEditMessageText(ctx.ChatID, ctx.Message.MessageID, "⚠️ удалось обновить список.")
+		t.bot.Send(edit)
+		return
+	}
+
+	ids, err := t.activities.SelectedListActive(ctx3, ctx.DBUserID)
+	if err != nil {
+		log.Error().Err(err).Msg("failed select sctivities from actitity selected activities ")
+		return
+	}
+	
+	selected := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		selected[id] = true
+	}
+
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(ids)+1)
+	for _, a := range acts {
+		if strings.TrimSpace(a.Name) == "" {
 			continue
 		}
-		btn := tgbotapi.NewInlineKeyboardButtonData(activity.NameActivity, "activity_selection_"+activity.NameActivity)
+		check := "⚪"
+		if selected[a.ID] {
+			check = "🟢"
+		}
+		title := check + " " + a.Name
+		if a.Emoji != "" {
+			title = check + " " + a.Emoji + " " + a.Name
+		}
+
+		cb := fmt.Sprintf("act_toggle_:%d", a.ID)
+		btn := tgbotapi.NewInlineKeyboardButtonData(title, cb)
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
 	}
 
-	inlineMenu := tgbotapi.NewInlineKeyboardMarkup(rows...)
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("↩️ Назад", "back_to_main"),
+	))
 
-	replyMenu := GetActivityMenuKeyboard()
+	text := fmt.Sprintf("📂 <b>Выбрать активность</b>\n\nВыбрано: %d из %d", len(ids), len(acts))
 
-	msgReply := tgbotapi.NewMessage(ctx.ChatID, "🗂")
-	msgReply.ReplyMarkup = replyMenu
-	if _, err := t.bot.Send(msgReply); err != nil {
-		log.Error().Err(err).Msg("error showing calendar reply")
+	// редактируем текущее сообщение (текст + клавиатуру)
+	markup := tgbotapi.NewInlineKeyboardMarkup(rows...)
+	edit := tgbotapi.NewEditMessageTextAndMarkup(ctx.ChatID, ctx.Message.MessageID, text, markup)
+	edit.ParseMode = "HTML"
+
+	if _, err := t.bot.Send(edit); err != nil {
+		log.Error().Err(err).Msg("edit activities list failed")
 	}
 
-	msg := tgbotapi.NewMessage(ctx.ChatID, text)
-	msg.ParseMode = "Markdown"
-	msg.ReplyMarkup = inlineMenu
-	if _, err := t.bot.Send(msg); err != nil {
-		log.Error().Err(err).Msg("error showing calendar reply")
+}
+
+// общий билдер UI для экрана выбора активностей
+func (t *TrackModule) buildActivityUI(ctx2 ctx2.Context, userID int64, addBack bool) (text string, markup tgbotapi.InlineKeyboardMarkup, selectedCount, total int, err error) {
+
+	acts, err := t.activities.ListActive(ctx2, userID)
+	if err != nil {
+		return "", tgbotapi.NewInlineKeyboardMarkup(), 0, 0, err
 	}
+
+	ids, err := t.activities.SelectedListActive(ctx2, userID)
+	if err != nil {
+		// не падаем — просто без галочек (selected пустой)
+		log.Error().Err(err).Msg("SelectedListActive failed")
+	}
+
+	// множество выбранных
+	selected := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		selected[id] = struct{}{}
+	}
+
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(acts)+1)
+	sel := 0
+	for _, a := range acts {
+		if strings.TrimSpace(a.Name) == "" {
+			continue
+		}
+
+		check := "⚪"
+		if _, ok := selected[a.ID]; ok {
+			check = "🟢"
+			sel++
+		}
+		title := check + " " + a.Name
+		if a.Emoji != "" {
+			title = check + " " + a.Emoji + " " + a.Name
+		}
+
+		cb := fmt.Sprintf("act_toggle_:%d", a.ID)
+		btn := tgbotapi.NewInlineKeyboardButtonData(title, cb)
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
+	}
+	if addBack {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("↩️ Назад", "back_to_main"),
+		))
+	}
+	text = fmt.Sprintf("📂 <b>Выбрать активность</b>\n\nВыбрано: %d из %d", sel, len(acts))
+	markup = tgbotapi.NewInlineKeyboardMarkup(rows...)
+
+	return text, markup, sel, len(acts), nil
 }

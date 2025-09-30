@@ -1,2 +1,2 @@
 SELECT *
-FROM shop.customers;
+FROM activities

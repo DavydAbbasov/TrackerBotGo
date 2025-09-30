@@ -46,7 +46,6 @@ func ShowLanguageSelectionKeyboard() tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("🇺🇦 Українська", "lang_uk"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🇹🇷 Türkçe", "lang_tur"),
 			tgbotapi.NewInlineKeyboardButtonData("🇸🇦 العربية", "lang_arab"),
 		),
 	)

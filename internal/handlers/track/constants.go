@@ -6,6 +6,7 @@ const (
 	ButtonCreateActivity = "➕ Создать активность"
 	ButtonExitTracking   = "🛑 Завершить"
 	ButtonViewReports    = "📈 Мои отчёты"
+	ButtonViewArchive    = "♾ Архив"
 )
 
 // Buttons reply

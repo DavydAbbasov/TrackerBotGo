@@ -3,15 +3,15 @@ package application
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/DavydAbbasov/trecker_bot/config"
 	"github.com/DavydAbbasov/trecker_bot/fsm"
 	"github.com/DavydAbbasov/trecker_bot/interfaces"
 	"github.com/DavydAbbasov/trecker_bot/internal/dispatcher"
 	handlers "github.com/DavydAbbasov/trecker_bot/internal/dispatcher"
-	user "github.com/DavydAbbasov/trecker_bot/internal/user"
+	helper "github.com/DavydAbbasov/trecker_bot/internal/lib/postgresql"
 	"github.com/DavydAbbasov/trecker_bot/storage"
-
-	"github.com/DavydAbbasov/trecker_bot/config"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/rs/zerolog/log"
 )
@@ -24,8 +24,8 @@ type App struct {
 	activityStorage storage.ActivityStorage
 	learningStorage storage.LearningStorage
 	repo            interfaces.UserRepository
-	validator       user.UserValidator
-
+	validator       *helper.Validator
+	repos           *storage.Repos
 	//    storage *postgresql.Storage
 	// userSvc *user.Service
 }
@@ -42,17 +42,27 @@ func New(cfg *config.Config) *App {
 	activityStorage := storage.NewMemoryActivityStorage()
 	learningStorage := storage.NewMemoryLearningStorage()
 	fsmManager := fsm.NewFSM()
-
-	postgresqlDriver, err := user.New(cfg)
+	validator := helper.NewUserValidator()
+	postgresqlDriver, err := storage.New(cfg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to get postgresql db driver")
 	}
-	validator := user.NewUserValidator()
 
-	dispatcher := handlers.New(bot, fsmManager, activityStorage, learningStorage, postgresqlDriver, validator) //
+	dsn := fmt.Sprintf(
+		"host=%s port=%v user=%s password=%s dbname=%s sslmode=%s ",
+		cfg.HostDB, cfg.PortDB, cfg.UserDB, cfg.PasswordDB, cfg.NameDB, cfg.SSLMode)
 
-	//Сохраняет dispatcher в список flushables:
-	flushables := []interfaces.Flushable{ //?
+	repos, err := storage.NewRepos(cfg, dsn)
+	if err != nil {
+		log.Fatal().Err(err).Msg("db connect")
+	}
+
+	dispatcher := handlers.New(
+		bot, fsmManager,
+		activityStorage, learningStorage,
+		postgresqlDriver, validator, repos.Activities)
+
+	flushables := []interfaces.Flushable{
 		dispatcher,
 		// to do
 	}
@@ -66,9 +76,11 @@ func New(cfg *config.Config) *App {
 		learningStorage: learningStorage,
 		repo:            postgresqlDriver,
 		validator:       validator,
+		repos:           repos,
 	}
 }
 func (a *App) Run(ctx context.Context) error {
+	go a.dispatcher.Run()
 
 	<-ctx.Done()
 

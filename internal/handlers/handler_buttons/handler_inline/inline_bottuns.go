@@ -34,7 +34,9 @@ func (i *InlinneModule) HandlePrefixRoute(ctx *context.CallbackContext) bool {
 		"activity_report_": i.handleActivityReport,
 		"lang_":            i.handleLanguageSwitch,
 		"edit_language_":   i.handleShowLanguageSelection,
+		"act_toggle_:":     i.handleActivityToggle,
 	}
+
 	// dynamic route
 	for prefix, handler := range prefixHandlers {
 		if strings.HasPrefix(ctx.Data, prefix) {
@@ -45,9 +47,11 @@ func (i *InlinneModule) HandlePrefixRoute(ctx *context.CallbackContext) bool {
 		}
 
 	}
-	i.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "Unknown prefixHandlers"))
-
+	// if prefixHandlers == false {
+	// 	i.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "Unknown (1)prefixHandlers"))
+	// }
 	return false
+
 }
 
 func (i *InlinneModule) HandleExactRoute(ctx *context.CallbackContext) bool {
@@ -108,7 +112,13 @@ func (i *InlinneModule) handleAddCollection(ctx *context.CallbackContext) {
 	i.learning.AddCollection(ctx)
 }
 
+func (i *InlinneModule) handleActivityToggle(ctx *context.CallbackContext) {
+	i.track.ActivityToggle(ctx)
+}
+
 // Confirming callback receipt
+//говорит Telegram: «клик получил».
+
 func (i *InlinneModule) callbackResponse(ctx *context.CallbackContext) {
 	i.bot.Send(tgbotapi.NewCallback(ctx.Callback.ID, ""))
 }

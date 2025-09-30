@@ -1,14 +1,14 @@
 package profile
 
 import (
-	context2 "context"
-	"fmt"
+	ctx2 "context"
+	"time"
 
 	"github.com/DavydAbbasov/trecker_bot/interfaces"
 
 	"github.com/DavydAbbasov/trecker_bot/internal/dispatcher/context"
 	"github.com/DavydAbbasov/trecker_bot/internal/handlers/entry"
-	user "github.com/DavydAbbasov/trecker_bot/internal/user"
+	helper "github.com/DavydAbbasov/trecker_bot/internal/lib/postgresql"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/rs/zerolog/log"
 )
@@ -17,10 +17,10 @@ type ProfileModule struct {
 	bot       interfaces.BotAPI
 	entry     *entry.EntryModule
 	repo      interfaces.UserRepository
-	validator user.UserValidator
+	validator *helper.Validator
 }
 
-func New(bot interfaces.BotAPI, entry *entry.EntryModule, repo interfaces.UserRepository, validator user.UserValidator) *ProfileModule {
+func New(bot interfaces.BotAPI, entry *entry.EntryModule, repo interfaces.UserRepository, validator *helper.Validator) *ProfileModule {
 	return &ProfileModule{
 		bot:       bot,
 		entry:     entry,
@@ -29,23 +29,25 @@ func New(bot interfaces.BotAPI, entry *entry.EntryModule, repo interfaces.UserRe
 	}
 }
 func (d *ProfileModule) ShowProfileMock(ctx *context.MsgContext) {
-	var err error
+	ctx2, cancel := ctx2.WithTimeout(ctx2.Background(), 2*time.Second)
+	defer cancel()
 
-	_, err = d.repo.GetUserByTelegramID(context2.Background(), ctx.UserID) // error get user
+	u, err := d.repo.GetUserByTelegramID(ctx2, ctx.UserID)
 	if err != nil {
-		// log
+		log.Error().Err(err).Msg("profile: get user failed")
 	}
 
-	msg := tgbotapi.NewMessage(ctx.ChatID, "")
+	view := BuildProfileView(u, ctx.Message.From)
+	txt := view.Markdown()
 
-	_, err = d.bot.Send(msg) // error send message
+	msg := tgbotapi.NewMessage(ctx.ChatID, txt)
+	msg.ParseMode = "Markdown"
+	msg.ReplyMarkup = BuildProfileKeyboard()
+	_, err = d.bot.Send(msg)
 	if err != nil {
 		log.Error().Err(err).Msg("err showing profil")
+
 	}
-
-	fmt.Println(err)
-	fmt.Println(err)
-
 }
 
 func (d *ProfileModule) ShowLanguageSelection(ctx *context.CallbackContext) {

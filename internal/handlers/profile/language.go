@@ -1,48 +1,58 @@
 package profile
 
 import (
-	"strings"
+	context2 "context"
+	"time"
 
 	"github.com/DavydAbbasov/trecker_bot/internal/dispatcher/context"
-	"github.com/DavydAbbasov/trecker_bot/internal/model"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	log "github.com/rs/zerolog/log"
+	"github.com/rs/zerolog/log"
 )
 
 func (d *ProfileModule) LanguageSwitch(ctx *context.CallbackContext) {
-	langMap := map[string]string{
-		"lang_en":   "Language set to English.",
-		"lang_ru":   "Язык установлен: русский.",
-		"lang_dch":  "Sprache eingestellt: Deutsch.",
-		"lang_ukr":  "Мову встановлено: українська.",
-		"lang_arab": "تم تعيين اللغة: العربية.",
-		"lang_tur":  "Dil ayarlandı: Türkçe.",
+	// Преобразуем CallbackContext → MsgContext
+	msgCtx := &context.MsgContext{
+		ChatID: ctx.ChatID,
+		UserID: ctx.UserID,
 	}
 
-	replyText, ok := langMap[ctx.Data]
+	CodeLang := map[string]string{
+		"lang_ru":   "ru",
+		"lang_en":   "en",
+		"lang_de":   "de",
+		"lang_uk":   "uk",
+		"lang_arab": "ar",
+	}
+
+	replyCodeLang, ok := CodeLang[ctx.Data]
 	if !ok {
-		replyText = "Unknown language selected"
+		replyCodeLang = "Unknown language (mock) selected"
+		d.bot.Send(tgbotapi.NewMessage(ctx.ChatID, replyCodeLang))
+		return
 	}
-	// 1) из "lang_ru" → "ru"
-	code := strings.TrimPrefix(ctx.Data, "lang_")
+	// валидация кодов через валидатор
+	if _, err := d.validator.ValidateLanguage(replyCodeLang); err != nil {
+		log.Error().Err(err).Msg("error validation language ")
+		return
+	}
 
-	// 2) валидируем только язык
-	lang, err := d.validator.ValidateLanguage(code)
-	if err != nil {
-		// язык не из поддерживаемых — отвечаем и выходим
-		_, _ = d.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "Unknown language selected"))
+	// сохранить в БД
+	ctx2, cancel := context2.WithTimeout(context2.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := d.repo.UpdateLanguage(ctx2, msgCtx.UserID, replyCodeLang); err != nil {
+		log.Error().Err(err).Msg("error updare language and save to bd")
 		return
 	}
-	// 3) апсерт по tg_id: записать язык
-	u := &model.User{
-		TgUserID: ctx.UserID, // или ctx.FromID — что у тебя в контексте
-		Language: &lang,
+
+	langMap := map[string]string{
+		"ru": "Язык установлен: русский!",
+		"en": "Language set to English!",
+		"de": "Sprache eingestellt: Deutsch!",
+		"uk": "Мову встановлено: українська!",
+		"ar": "تم تعيين اللغة: العربية!",
 	}
-	if err := d.repo.CreateUserByTelegramID(ctx.Ctx, u); err != nil {
-		log.Error().Err(err).Msg("update language failed")
-		_, _ = d.bot.Send(tgbotapi.NewMessage(ctx.ChatID, "Save error, try later"))
-		return
-	}
+
+	replyText, ok := langMap[replyCodeLang]
 
 	// Уведомление Telegram, что мы обработали callback
 	d.bot.Send(tgbotapi.NewCallback(ctx.Callback.ID, ""))
@@ -53,11 +63,6 @@ func (d *ProfileModule) LanguageSwitch(ctx *context.CallbackContext) {
 	// Отправляем сообщение об успешной смене языка
 	d.bot.Send(tgbotapi.NewMessage(ctx.ChatID, replyText))
 
-	// Преобразуем CallbackContext → MsgContext
-	msgCtx := &context.MsgContext{
-		ChatID: ctx.ChatID,
-		UserID: ctx.UserID,
-	}
 	// Показываем главное меню
 	d.entry.ShowMainMenu(msgCtx)
 }

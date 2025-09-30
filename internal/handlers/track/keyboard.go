@@ -14,7 +14,7 @@ func BuildTrackKeyboard() tgbotapi.InlineKeyboardMarkup {
 
 	row2 := tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData(ButtonViewReports, "summary_activity"),
-		tgbotapi.NewInlineKeyboardButtonData(ButtonExitTracking, "exit"),
+		tgbotapi.NewInlineKeyboardButtonData(ButtonViewArchive, "archive_activity"),
 	)
 
 	return tgbotapi.NewInlineKeyboardMarkup(row1, row2)

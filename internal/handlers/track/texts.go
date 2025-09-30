@@ -9,10 +9,10 @@ const (
 
 func TrackingMenuText(data ActivityReportData) string {
 	return fmt.Sprintf(`
- %s 
- %s *%s*  
- %s *%s* 
- %s *%s дня*  
+%s
+ %s *%s*
+ %s *%s*
+ %s *%s дня*
  %s *%s активности*
 `,
 		MenuTitleMainTrack,
@@ -25,10 +25,10 @@ func TrackingMenuText(data ActivityReportData) string {
 func ShowActivityReportText(data ActivityReportData) string {
 	return fmt.Sprintf(`
 
-%s *%s*	
-%s *%s дня* 
-%s *%s*  
-%s *%s*  
+%s *%s*
+%s *%s дня*
+%s *%s*
+%s *%s*
 %s *%s*
 
 Выберите, что вы хотите сделать:`,

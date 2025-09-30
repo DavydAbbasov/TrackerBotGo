@@ -9,5 +9,3 @@ type UserInput struct {
 	Language    *string
 	TimeZone    *string
 }
-
-func S(s string) *string { return &s }

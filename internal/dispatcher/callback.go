@@ -1,7 +1,10 @@
 package dispatcher
 
 import (
+	stdctx "context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/DavydAbbasov/trecker_bot/internal/dispatcher/context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -31,11 +34,31 @@ func (d *Dispatcher) RunCallback(callback *tgbotapi.CallbackQuery) {
 		return
 	}
 }
-func (d *Dispatcher) NewCallbackContext(callback *tgbotapi.CallbackQuery) *context.CallbackContext {
-	return &context.CallbackContext{
-		Callback: callback,
-		ChatID:   callback.Message.Chat.ID,
-		UserID:   callback.From.ID,
-		Data:     callback.Data,
+
+// Событие – нажатие инлайн-кнопки
+func (d *Dispatcher) NewCallbackContext(cb *tgbotapi.CallbackQuery) *context.CallbackContext {
+
+	ctxCB := &context.CallbackContext{
+		Callback: cb,
+		UserID:   int64(cb.From.ID), // Telegram ID
+		Data:     cb.Data,
+		Message:  cb.Message,
+		UserName: strings.TrimSpace(cb.From.UserName),
 	}
+	if cb.Message != nil {
+		ctxCB.ChatID = cb.Message.Chat.ID
+	}
+
+	reqCtx, cancel := stdctx.WithTimeout(stdctx.Background(), 3*time.Second)
+	defer cancel()
+
+	id, err := d.repo.EnsureIDByTelegram(reqCtx, ctxCB.UserID, ctxCB.UserName)
+	if err != nil {
+		log.Error().Err(err).Int64("tg_id", ctxCB.UserID).Str("data", cb.Data).Msg("ensure user failed (callback)")
+		d.bot.Send(tgbotapi.NewCallback(cb.ID, "Ошибка, попробуйте ещё раз"))
+		return ctxCB
+	}
+
+	ctxCB.DBUserID = id // users.id
+	return ctxCB
 }
